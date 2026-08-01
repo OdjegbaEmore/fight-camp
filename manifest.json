@@ -1,0 +1,15 @@
+{
+  "name": "Fight Camp Tracker",
+  "short_name": "Fight Camp",
+  "description": "Weigh-ins, calorie deficit tracking, and DEXA checkpoints for Archetype Boxing Summer Fight Camp 2026.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf9f7",
+  "theme_color": "#c8102e",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

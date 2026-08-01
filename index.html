@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Fight Camp Tracker</title>
+
+<!-- PWA / iOS home-screen support -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c8102e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fight Camp">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --red: #c8102e;
+    --red-dark: #94081f;
+    --ink: #1a1a1a;
+    --gray-700: #4a4a4a;
+    --gray-500: #767676;
+    --gray-200: #e7e5e2;
+    --gray-100: #f4f2ef;
+    --bg: #faf9f7;
+    --card: #ffffff;
+    --green: #1f7a3d;
+    --amber: #b5791b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 20px 16px 48px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(48px, env(safe-area-inset-bottom));
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .header h1 span { color: var(--red); }
+  .header .sub { color: var(--gray-700); font-size: 13px; margin-top: 4px; }
+  .progress-wrap { min-width: 220px; flex: 1; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--gray-700); margin-bottom: 4px; }
+  .progress-bar { height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--red); }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); margin-bottom: 6px; }
+  .card .value { font-size: 22px; font-weight: 700; }
+  .card .note { font-size: 12px; color: var(--gray-700); margin-top: 4px; }
+  .card .value.good { color: var(--green); }
+  .card .value.warn { color: var(--amber); }
+  .card .value.bad { color: var(--red); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  @media (min-width: 900px) { .grid-2 { grid-template-columns: 1.1fr 1.4fr; } }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 12px;
+    color: var(--gray-700);
+  }
+  .chart-box { position: relative; height: 240px; }
+
+  form.entry-form {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 8px;
+  }
+  @media (min-width: 900px) { form.entry-form { grid-template-columns: repeat(6, 1fr); } }
+  .field label { display: block; font-size: 11px; color: var(--gray-700); margin-bottom: 4px; }
+  .field input {
+    width: 100%;
+    padding: 9px 8px;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    font-size: 16px; /* 16px prevents iOS Safari auto-zoom on focus */
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary:hover { background: #000; }
+  .btn-secondary { background: var(--gray-200); color: var(--ink); }
+  .btn-danger { background: transparent; color: var(--red); padding: 2px 6px; font-weight: 700; font-size: 16px; }
+  .helper-note { font-size: 11.5px; color: var(--gray-500); margin: 6px 0 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--gray-100); }
+  th { color: var(--gray-500); font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.4px; }
+  tbody tr:hover { background: var(--gray-100); }
+  td.num { font-variant-numeric: tabular-nums; }
+  .pos { color: var(--red); }
+  .neg { color: var(--green); }
+  .table-scroll { max-height: 380px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  details.settings { background: var(--card); border: 1px solid var(--gray-200); border-radius: 10px; padding: 12px 16px; margin-bottom: 22px; }
+  details.settings summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--gray-700); text-transform: uppercase; letter-spacing: 0.5px; }
+  .settings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 14px; }
+  @media (min-width: 900px) { .settings-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .dexa-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
+  .badge { display:inline-block; background: var(--red); color:#fff; font-size:10px; padding:2px 6px; border-radius: 4px; margin-left:6px; vertical-align: middle; }
+  .empty-note { color: var(--gray-500); font-size: 13px; padding: 10px 0; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>Fight <span>Camp</span> Tracker</h1>
+      <div class="sub" id="headerSub">Loading…</div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="dayLabel">Day 0 of 56</span><span id="endLabel"></span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="cards" id="summaryCards"></div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <h2>Weight Trend</h2>
+      <div class="chart-box"><canvas id="weightChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Calories In vs. Out</h2>
+      <div class="chart-box"><canvas id="calChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:22px;">
+    <h2>Log an Entry</h2>
+    <form class="entry-form" id="entryForm">
+      <div class="field"><label>Date</label><input type="date" id="f_date" required></div>
+      <div class="field"><label>Weight (lbs)</label><input type="number" step="0.1" inputmode="decimal" id="f_weight" placeholder="optional"></div>
+      <div class="field"><label>Extra cal (beyond plan)</label><input type="number" step="1" inputmode="numeric" id="f_extra" placeholder="0"></div>
+      <div class="field"><label>Training cal burned</label><input type="number" step="1" inputmode="numeric" id="f_training" placeholder="0"></div>
+      <div class="field"><label>Notes</label><input type="text" id="f_notes" placeholder="optional"></div>
+      <div class="field"><button type="submit" class="btn-primary" style="width:100%">Save Entry</button></div>
+    </form>
+    <div class="helper-note">Intake defaults to your 1,500-cal meal plan automatically — "Extra cal" is only what you ate <em>on top of</em> the plan (a snack, a drink, a bigger portion, etc). Burn = RMR + training calories. This phone version doesn't auto-sync from Myzone — enter training calories here yourself after a workout. Picking a date auto-fills its current values below — leave a field as-is to keep what's already logged there.</div>
+  </div>
+
+  <div class="panel" style="margin-bottom:22px;">
+    <h2>Daily Log</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Weight</th><th>Intake</th><th>Burn</th><th>Net</th><th>Notes</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:22px;">
+    <h2>DEXA Checkpoints <span class="badge">Pre / Post</span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Label</th><th>Weight</th><th>Body Fat %</th><th>Lean Mass</th><th></th></tr></thead>
+        <tbody id="dexaBody"></tbody>
+      </table>
+    </div>
+    <div class="dexa-row">
+      <div class="field"><label>Date</label><input type="date" id="d_date"></div>
+      <div class="field"><label>Label</label><input type="text" id="d_label" placeholder="e.g. Post-Camp"></div>
+      <div class="field"><label>Weight (lbs)</label><input type="number" step="0.1" inputmode="decimal" id="d_weight"></div>
+      <div class="field"><label>Body fat %</label><input type="number" step="0.1" inputmode="decimal" id="d_bf"></div>
+      <div class="field"><label>Lean mass (lbs)</label><input type="number" step="0.1" inputmode="decimal" id="d_lean"></div>
+      <div class="field"><button type="button" class="btn-secondary" id="addDexaBtn">Add DEXA Scan</button></div>
+    </div>
+  </div>
+
+  <details class="settings">
+    <summary>Settings</summary>
+    <div class="settings-grid">
+      <div class="field"><label>Camp start date</label><input type="date" id="s_start"></div>
+      <div class="field"><label>Camp end date</label><input type="date" id="s_end"></div>
+      <div class="field"><label>RMR (cal/day at rest)</label><input type="number" id="s_rmr"></div>
+      <div class="field"><label>Meal plan base (cal/day)</label><input type="number" id="s_base"></div>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn-primary" id="saveSettingsBtn">Save Settings</button>
+      <button class="btn-secondary" id="exportBtn" type="button">Export CSV</button>
+      <button class="btn-secondary" id="resetBtn" type="button" style="color:var(--red);">Reset All Data</button>
+    </div>
+  </details>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'fightcamp_tracker_v1';
+
+  // ---- Seed data (baseline + training log as of the day this app was generated).
+  // This phone install stores its own data locally (localStorage on this device) and does
+  // NOT sync with the desktop Cowork tracker or Myzone automatically — log entries here.
+  const seedTrainingCal = {
+    "2026-06-17": 576, "2026-06-18": 586, "2026-06-19": 537,
+    "2026-06-22": 1225, "2026-06-23": 2365, "2026-06-24": 1343,
+    "2026-06-25": 727, "2026-06-26": 736, "2026-06-29": 960,
+    "2026-06-30": 1087, "2026-07-01": 1249, "2026-07-02": 1607,
+    "2026-07-06": 868, "2026-07-07": 1100, "2026-07-08": 1133,
+    "2026-07-10": 869, "2026-07-13": 1390, "2026-07-14": 1644,
+    "2026-07-15": 2652, "2026-07-16": 775, "2026-07-17": 1539,
+    "2026-07-18": 1871, "2026-07-19": 711, "2026-07-20": 1042,
+    "2026-07-21": 1027, "2026-07-22": 1734
+  };
+  const seedCampEnd = "2026-07-22";
+  const seedCampStart = "2026-06-17";
+
+  function buildSeedEntries(){
+    const entries = {};
+    let d = new Date(seedCampStart + "T00:00:00");
+    const end = new Date(seedCampEnd + "T00:00:00");
+    while (d <= end) {
+      const iso = d.toISOString().slice(0,10);
+      entries[iso] = {
+        weight: (iso === "2026-06-18") ? 280 : null,
+        extraCal: 0,
+        trainingCal: seedTrainingCal[iso] || 0,
+        notes: (iso === "2026-06-18") ? "DEXA baseline" : "",
+        trainingCalManual: false
+      };
+      d.setDate(d.getDate() + 1);
+    }
+    return entries;
+  }
+
+  function defaultState(){
+    return {
+      settingsVersion: 3,
+      settings: {
+        campStart: "2026-07-15", // official Archetype Boxing Summer Fight Camp window
+        campEnd: "2026-08-31",
+        rmr: 2138,
+        baseCal: 1500
+      },
+      entries: buildSeedEntries(),
+      lastSyncedThrough: seedCampEnd,
+      dexaScans: [
+        { date: "2026-06-18", label: "Pre-Camp Baseline", weight: 280, bf: 30.9, lean: 183.8 }
+      ]
+    };
+  }
+
+  function migrate(state){
+    let changed = false;
+    if (!state.settingsVersion || state.settingsVersion < 2) {
+      state.settings.campStart = "2026-07-15";
+      state.settings.campEnd = "2026-08-31";
+      delete state.settings.campWeeks;
+      state.settingsVersion = 2;
+      changed = true;
+    }
+    if (!state.settingsVersion || state.settingsVersion < 3) {
+      Object.keys(state.entries || {}).forEach(d => {
+        const e = state.entries[d];
+        if (e.trainingCalManual === undefined) {
+          e.trainingCalManual = (e.source === 'manual');
+        }
+      });
+      state.settingsVersion = 3;
+      changed = true;
+    }
+    if (!state.lastSyncedThrough) { state.lastSyncedThrough = seedCampStart; changed = true; }
+    return changed;
+  }
+
+  function load(){
+    let s;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      s = raw ? JSON.parse(raw) : null;
+    } catch(e) { s = null; }
+    if (!s) {
+      s = defaultState();
+      save(s);
+      return s;
+    }
+    let changed = migrate(s);
+    if (changed) save(s);
+    return s;
+  }
+  function save(state){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  let state = load();
+
+  function todayISO(){
+    return new Date().toISOString().slice(0,10);
+  }
+
+  function ensureToday(){
+    const t = todayISO();
+    if (!state.entries[t]) {
+      state.entries[t] = { weight: null, extraCal: 0, trainingCal: 0, notes: "", trainingCalManual: false };
+      save(state);
+    }
+  }
+  ensureToday();
+
+  function fmt(n, d=0){
+    if (n === null || n === undefined || isNaN(n)) return "—";
+    return Number(n).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
+  }
+
+  function intakeFor(e){
+    return state.settings.baseCal + (Number(e.extraCal)||0);
+  }
+  function burnFor(e){
+    return state.settings.rmr + (Number(e.trainingCal)||0);
+  }
+
+  function sortedDates(){
+    return Object.keys(state.entries).sort();
+  }
+
+  function latestWeight(){
+    const dates = sortedDates();
+    for (let i = dates.length-1; i>=0; i--){
+      const w = state.entries[dates[i]].weight;
+      if (w !== null && w !== undefined && w !== "") return {date: dates[i], weight: Number(w)};
+    }
+    return null;
+  }
+  function firstWeight(){
+    const dates = sortedDates();
+    for (let i = 0; i<dates.length; i++){
+      const w = state.entries[dates[i]].weight;
+      if (w !== null && w !== undefined && w !== "") return {date: dates[i], weight: Number(w)};
+    }
+    return null;
+  }
+
+  function render(){
+    renderHeader();
+    renderCards();
+    renderWeightChart();
+    renderCalChart();
+    renderLogTable();
+    renderDexaTable();
+    renderSettingsForm();
+  }
+
+  function renderHeader(){
+    const start = new Date(state.settings.campStart + "T00:00:00");
+    const end = new Date(state.settings.campEnd + "T00:00:00");
+    const now = new Date(todayISO() + "T00:00:00");
+    const totalDays = Math.round((end - start)/86400000) + 1;
+    if (now < start) {
+      const daysUntil = Math.round((start - now)/86400000);
+      document.getElementById('dayLabel').textContent = `Starts in ${daysUntil} day${daysUntil===1?'':'s'}`;
+      document.getElementById('progressFill').style.width = "0%";
+    } else {
+      const dayNum = Math.min(totalDays, Math.round((now - start)/86400000) + 1);
+      const pct = Math.min(100, Math.max(0, (dayNum/totalDays)*100));
+      document.getElementById('dayLabel').textContent = `Day ${dayNum} of ${totalDays}`;
+      document.getElementById('progressFill').style.width = pct + "%";
+    }
+    document.getElementById('endLabel').textContent = `Ends ${state.settings.campEnd}`;
+    document.getElementById('headerSub').textContent =
+      `Camp ${state.settings.campStart} → ${state.settings.campEnd} · RMR ${fmt(state.settings.rmr)} cal · Meal plan ${fmt(state.settings.baseCal)} cal/day`;
+  }
+
+  function renderCards(){
+    const cards = [];
+    const lw = latestWeight();
+    const fw = firstWeight();
+    const startWeight = fw ? fw.weight : null;
+
+    if (lw && startWeight !== null) {
+      const change = lw.weight - startWeight;
+      cards.push({
+        label: "Current Weight",
+        value: fmt(lw.weight,1) + " lbs",
+        cls: change < 0 ? "good" : (change > 0 ? "bad" : ""),
+        note: `${change <= 0 ? "" : "+"}${fmt(change,1)} lbs vs ${fmt(startWeight,1)} start (${lw.date})`
+      });
+    } else {
+      cards.push({label:"Current Weight", value: lw ? fmt(lw.weight,1)+" lbs" : "—", note: "Log a weigh-in to start the trend"});
+    }
+
+    const dates = sortedDates();
+    let totalDeficit = 0, loggedDays = 0;
+    const cutoff = todayISO();
+    dates.forEach(d => {
+      if (d > cutoff) return;
+      const e = state.entries[d];
+      totalDeficit += (burnFor(e) - intakeFor(e));
+      loggedDays++;
+    });
+    const estLbsLost = totalDeficit / 3500;
+    cards.push({
+      label: "Est. Fat Lost (calorie math)",
+      value: fmt(estLbsLost,1) + " lbs",
+      cls: estLbsLost > 0 ? "good" : "warn",
+      note: `${fmt(totalDeficit,0)} cal cumulative deficit / ${loggedDays} days`
+    });
+
+    if (lw && fw && lw.date !== fw.date) {
+      const actualLoss = fw.weight - lw.weight;
+      const days = (new Date(lw.date) - new Date(fw.date))/86400000;
+      const perWeek = days > 0 ? (actualLoss/days)*7 : 0;
+      cards.push({
+        label: "Actual Loss (scale)",
+        value: fmt(actualLoss,1) + " lbs",
+        cls: actualLoss > 0 ? "good" : "warn",
+        note: `≈ ${fmt(perWeek,1)} lbs/week pace`
+      });
+    } else {
+      cards.push({label:"Actual Loss (scale)", value:"—", note:"Needs 2+ weigh-ins"});
+    }
+
+    const avgNet = loggedDays ? totalDeficit/loggedDays : 0;
+    cards.push({
+      label: "Avg Daily Deficit",
+      value: fmt(avgNet,0) + " cal",
+      cls: avgNet > 0 ? "good" : "bad",
+      note: avgNet > 0 ? "Running a deficit on average" : "Running at/above maintenance"
+    });
+
+    const wrap = document.getElementById('summaryCards');
+    wrap.innerHTML = cards.map(c => `
+      <div class="card">
+        <div class="label">${c.label}</div>
+        <div class="value ${c.cls||''}">${c.value}</div>
+        <div class="note">${c.note||''}</div>
+      </div>
+    `).join('');
+  }
+
+  let weightChartInstance, calChartInstance;
+
+  function renderWeightChart(){
+    const dates = sortedDates().filter(d => state.entries[d].weight !== null && state.entries[d].weight !== undefined && state.entries[d].weight !== "");
+    const data = dates.map(d => Number(state.entries[d].weight));
+    const ctx = document.getElementById('weightChart');
+    if (weightChartInstance) weightChartInstance.destroy();
+    if (dates.length === 0) {
+      ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+      return;
+    }
+    weightChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [{
+          label: 'Weight (lbs)',
+          data: data,
+          borderColor: '#c8102e',
+          backgroundColor: 'rgba(200,16,46,0.08)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 3,
+          pointBackgroundColor: '#c8102e'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { title: { display:true, text:'lbs' } },
+          x: { ticks: { maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+  }
+
+  function renderCalChart(){
+    const dates = sortedDates().filter(d => d <= todayISO());
+    const last = dates.slice(-30);
+    const intake = last.map(d => intakeFor(state.entries[d]));
+    const rmr = last.map(() => state.settings.rmr);
+    const active = last.map(d => Number(state.entries[d].trainingCal)||0);
+    const burn = last.map((d,i) => rmr[i] + active[i]);
+    const net = last.map((d,i) => burn[i] - intake[i]);
+    const ctx = document.getElementById('calChart');
+    if (calChartInstance) calChartInstance.destroy();
+    calChartInstance = new Chart(ctx, {
+      data: {
+        labels: last,
+        datasets: [
+          { type:'bar', label:'Intake', data: intake, backgroundColor:'#e7b4bb', stack: 'intake', order: 2 },
+          { type:'bar', label:'RMR (resting)', data: rmr, backgroundColor:'#4a4a4a', stack: 'burn', order: 2 },
+          { type:'bar', label:'Active (training)', data: active, backgroundColor:'#c8102e', stack: 'burn', order: 2 },
+          { type:'line', label:'Net Deficit', data: net, borderColor:'#1f7a3d', backgroundColor:'#1f7a3d', yAxisID:'y1', tension:0.2, pointRadius:2, order: 1 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
+        scales: {
+          y: { stacked: true, title: { display:true, text:'calories' } },
+          y1: { position:'right', grid:{drawOnChartArea:false}, title:{display:true,text:'net deficit'} },
+          x: { stacked: true, ticks: { maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+  }
+
+  function renderLogTable(){
+    const dates = sortedDates().slice().reverse();
+    const body = document.getElementById('logBody');
+    if (dates.length === 0) {
+      body.innerHTML = `<tr><td colspan="7" class="empty-note">No entries yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = dates.map(d => {
+      const e = state.entries[d];
+      const intake = intakeFor(e);
+      const burn = burnFor(e);
+      const net = burn - intake;
+      const netCls = net >= 0 ? 'neg' : 'pos';
+      return `<tr>
+        <td>${d}${d === todayISO() ? ' <span class="badge">today</span>' : ''}</td>
+        <td class="num">${e.weight ? fmt(e.weight,1) : '—'}</td>
+        <td class="num">${fmt(intake)}</td>
+        <td class="num">${fmt(burn)}${e.trainingCalManual ? ` <span class="badge" style="background:var(--amber);">M</span>` : ''}</td>
+        <td class="num ${netCls}">${net >= 0 ? '−' : '+'}${fmt(Math.abs(net))}</td>
+        <td>${e.notes || ''}</td>
+        <td><button class="btn-danger" data-del="${d}" title="Delete">✕</button></td>
+      </tr>`;
+    }).join('');
+
+    body.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = btn.getAttribute('data-del');
+        delete state.entries[d];
+        save(state);
+        render();
+      });
+    });
+
+    body.querySelectorAll('tr').forEach((row, idx) => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', (ev) => {
+        if (ev.target.closest('button')) return;
+        const d = dates[idx];
+        populateEntryForm(d);
+        window.scrollTo({top: document.getElementById('entryForm').offsetTop - 80, behavior:'smooth'});
+      });
+    });
+  }
+
+  function renderDexaTable(){
+    const body = document.getElementById('dexaBody');
+    const scans = (state.dexaScans||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+    if (scans.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" class="empty-note">No DEXA scans logged.</td></tr>`;
+      return;
+    }
+    body.innerHTML = scans.map((s,i) => `
+      <tr>
+        <td>${s.date}</td>
+        <td>${s.label||''}</td>
+        <td class="num">${fmt(s.weight,1)} lbs</td>
+        <td class="num">${fmt(s.bf,1)}%</td>
+        <td class="num">${fmt(s.lean,1)} lbs</td>
+        <td><button class="btn-danger" data-ddel="${s.date}|${s.label}" title="Delete">✕</button></td>
+      </tr>`).join('');
+    body.querySelectorAll('[data-ddel]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [d,l] = btn.getAttribute('data-ddel').split('|');
+        state.dexaScans = state.dexaScans.filter(s => !(s.date === d && (s.label||'') === l));
+        save(state);
+        render();
+      });
+    });
+  }
+
+  function renderSettingsForm(){
+    document.getElementById('s_start').value = state.settings.campStart;
+    document.getElementById('s_end').value = state.settings.campEnd;
+    document.getElementById('s_rmr').value = state.settings.rmr;
+    document.getElementById('s_base').value = state.settings.baseCal;
+  }
+
+  function populateEntryForm(d){
+    const e = state.entries[d];
+    document.getElementById('f_date').value = d;
+    document.getElementById('f_weight').value = (e && e.weight != null) ? e.weight : '';
+    document.getElementById('f_extra').value = e ? (e.extraCal || 0) : '';
+    document.getElementById('f_training').value = e ? (e.trainingCal || 0) : '';
+    document.getElementById('f_notes').value = e ? (e.notes || '') : '';
+  }
+
+  document.getElementById('f_date').addEventListener('change', function(){
+    if (this.value) populateEntryForm(this.value);
+  });
+
+  document.getElementById('entryForm').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    const d = document.getElementById('f_date').value;
+    if (!d) return;
+    const existing = state.entries[d] || {};
+    const weightInput = document.getElementById('f_weight').value;
+    const extraInput = document.getElementById('f_extra').value;
+    const trainingInput = document.getElementById('f_training').value;
+    const notesInput = document.getElementById('f_notes').value;
+
+    const weight = weightInput === '' ? (existing.weight ?? null) : Number(weightInput);
+    const extraCal = extraInput === '' ? (existing.extraCal || 0) : Number(extraInput);
+
+    let trainingCal, trainingCalManual;
+    if (trainingInput === '') {
+      trainingCal = existing.trainingCal || 0;
+      trainingCalManual = existing.trainingCalManual || false;
+    } else {
+      trainingCal = Number(trainingInput);
+      trainingCalManual = true;
+    }
+
+    const notes = notesInput === '' ? (existing.notes || '') : notesInput;
+
+    state.entries[d] = { weight, extraCal, trainingCal, notes, trainingCalManual };
+    save(state);
+    this.reset();
+    render();
+  });
+
+  document.getElementById('addDexaBtn').addEventListener('click', function(){
+    const d = document.getElementById('d_date').value;
+    if (!d) return;
+    const scan = {
+      date: d,
+      label: document.getElementById('d_label').value || 'DEXA Scan',
+      weight: Number(document.getElementById('d_weight').value || 0),
+      bf: Number(document.getElementById('d_bf').value || 0),
+      lean: Number(document.getElementById('d_lean').value || 0)
+    };
+    state.dexaScans = state.dexaScans || [];
+    state.dexaScans.push(scan);
+    if (!state.entries[d]) state.entries[d] = { weight: null, extraCal:0, trainingCal:0, notes:'', trainingCalManual:false };
+    if (!state.entries[d].weight) state.entries[d].weight = scan.weight;
+    if (!state.entries[d].notes) state.entries[d].notes = scan.label;
+    save(state);
+    ['d_date','d_label','d_weight','d_bf','d_lean'].forEach(id => document.getElementById(id).value = '');
+    render();
+  });
+
+  document.getElementById('saveSettingsBtn').addEventListener('click', function(){
+    state.settings.campStart = document.getElementById('s_start').value || state.settings.campStart;
+    state.settings.campEnd = document.getElementById('s_end').value || state.settings.campEnd;
+    state.settings.rmr = Number(document.getElementById('s_rmr').value) || state.settings.rmr;
+    state.settings.baseCal = Number(document.getElementById('s_base').value) || state.settings.baseCal;
+    save(state);
+    render();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    const dates = sortedDates();
+    let csv = 'date,weight,extra_cal,training_cal,intake,burn,net_deficit,notes\n';
+    dates.forEach(d => {
+      const e = state.entries[d];
+      const intake = intakeFor(e);
+      const burn = burnFor(e);
+      csv += [d, e.weight||'', e.extraCal||0, e.trainingCal||0, intake, burn, burn-intake, (e.notes||'').replace(/,/g,';')].join(',') + '\n';
+    });
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'fight_camp_log.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    if (!confirm('This wipes all logged data on this phone and restores the original seed. Are you sure?')) return;
+    state = defaultState();
+    ensureToday();
+    save(state);
+    render();
+  });
+
+  document.getElementById('f_date').value = todayISO();
+
+  render();
+
+  // Register service worker for offline support (installed PWAs benefit most from this)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
