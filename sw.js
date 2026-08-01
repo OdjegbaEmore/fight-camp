@@ -1,6 +1,7 @@
 // Minimal offline cache for the Fight Camp Tracker PWA.
-// Cache-first for the app shell, network-first (with cache fallback) for everything else.
-const CACHE_NAME = 'fight-camp-tracker-v1';
+// Network-first (with cache fallback) for the HTML shell so code updates show up immediately;
+// cache-first (stale-while-revalidate) for static assets that rarely change.
+const CACHE_NAME = 'fight-camp-tracker-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -32,6 +33,23 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   // Never intercept Supabase (auth/API) calls — always hit the network so data stays live.
   if (event.request.url.indexOf('.supabase.co') !== -1) return;
+
+  // The HTML shell itself: always prefer the network so code updates show up on next load.
+  // Only fall back to cache if there's no connection.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Static assets (icons, chart/supabase CDN bundles): cache-first, refresh in background.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
