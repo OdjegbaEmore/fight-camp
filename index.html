@@ -17,6 +17,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root {
     color-scheme: light;
@@ -154,9 +155,29 @@
   .dexa-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 10px; }
   .badge { display:inline-block; background: var(--red); color:#fff; font-size:10px; padding:2px 6px; border-radius: 4px; margin-left:6px; vertical-align: middle; }
   .empty-note { color: var(--gray-500); font-size: 13px; padding: 10px 0; }
+
+  .login-wrap { min-height: 80vh; display: flex; align-items: center; justify-content: center; }
+  .login-card { width: 100%; max-width: 320px; }
+  .login-card .field { margin-bottom: 12px; }
+  .login-error { color: var(--red); font-size: 12.5px; min-height: 16px; margin: 4px 0 10px; }
+  #syncStatus { font-size: 11.5px; color: var(--gray-500); }
 </style>
 </head>
 <body>
+
+  <div id="loginScreen" class="login-wrap">
+    <div class="panel login-card">
+      <h2 style="margin-top:0;">Fight Camp Tracker</h2>
+      <form id="loginForm">
+        <div class="field"><label>Email</label><input type="email" id="l_email" autocomplete="username" required></div>
+        <div class="field"><label>Password</label><input type="password" id="l_password" autocomplete="current-password" required></div>
+        <div class="login-error" id="loginError"></div>
+        <button type="submit" class="btn-primary" style="width:100%">Log In</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="appRoot" style="display:none;">
 
   <div class="header">
     <div>
@@ -192,7 +213,7 @@
       <div class="field"><label>Notes</label><input type="text" id="f_notes" placeholder="optional"></div>
       <div class="field"><button type="submit" class="btn-primary" style="width:100%">Save Entry</button></div>
     </form>
-    <div class="helper-note">Intake defaults to your 1,500-cal meal plan automatically — "Extra cal" is only what you ate <em>on top of</em> the plan (a snack, a drink, a bigger portion, etc). Burn = RMR + training calories. This phone version doesn't auto-sync from Myzone — enter training calories here yourself after a workout. Picking a date auto-fills its current values below — leave a field as-is to keep what's already logged there.</div>
+    <div class="helper-note">Intake defaults to your 1,500-cal meal plan automatically — "Extra cal" is only what you ate <em>on top of</em> the plan (a snack, a drink, a bigger portion, etc). Burn = RMR + training calories. This app syncs to the cloud — enter training calories here yourself after a workout. Picking a date auto-fills its current values below — leave a field as-is to keep what's already logged there.</div>
   </div>
 
   <div class="panel" style="margin-bottom:22px;">
@@ -235,129 +256,200 @@
       <div class="field"><label>RMR (cal/day at rest)</label><input type="number" id="s_rmr"></div>
       <div class="field"><label>Meal plan base (cal/day)</label><input type="number" id="s_base"></div>
     </div>
-    <div style="margin-top:12px;">
+    <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <button class="btn-primary" id="saveSettingsBtn">Save Settings</button>
       <button class="btn-secondary" id="exportBtn" type="button">Export CSV</button>
-      <button class="btn-secondary" id="resetBtn" type="button" style="color:var(--red);">Reset All Data</button>
+      <button class="btn-secondary" id="resetBtn" type="button" style="color:var(--red);">Reset Cloud Data</button>
+      <button class="btn-secondary" id="logoutBtn" type="button">Log Out</button>
+      <span id="syncStatus"></span>
     </div>
   </details>
 
+  </div><!-- #appRoot -->
+
 <script>
 (function(){
-  const STORAGE_KEY = 'fightcamp_tracker_v1';
+  const SUPABASE_URL = 'https://zbwqewemphykxqqksaza.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpid3Fld2VtcGh5a3hxcWtzYXphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1NDY0NDAsImV4cCI6MjEwMTEyMjQ0MH0.PBFH1O7PrSNg6JkWk49w2et_YamGxz1KA8DuFFsQEGU';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // ---- Seed data (baseline + training log as of the day this app was generated).
-  // This phone install stores its own data locally (localStorage on this device) and does
-  // NOT sync with the desktop Cowork tracker or Myzone automatically — log entries here.
-  const seedTrainingCal = {
-    "2026-06-17": 576, "2026-06-18": 586, "2026-06-19": 537,
-    "2026-06-22": 1225, "2026-06-23": 2365, "2026-06-24": 1343,
-    "2026-06-25": 727, "2026-06-26": 736, "2026-06-29": 960,
-    "2026-06-30": 1087, "2026-07-01": 1249, "2026-07-02": 1607,
-    "2026-07-06": 868, "2026-07-07": 1100, "2026-07-08": 1133,
-    "2026-07-10": 869, "2026-07-13": 1390, "2026-07-14": 1644,
-    "2026-07-15": 2652, "2026-07-16": 775, "2026-07-17": 1539,
-    "2026-07-18": 1871, "2026-07-19": 711, "2026-07-20": 1042,
-    "2026-07-21": 1027, "2026-07-22": 1734
-  };
-  const seedCampEnd = "2026-07-22";
-  const seedCampStart = "2026-06-17";
+  const LEGACY_STORAGE_KEY = 'fightcamp_tracker_v1';
+  const IMPORT_DISMISSED_KEY = 'fightcamp_import_dismissed';
 
-  function buildSeedEntries(){
-    const entries = {};
-    let d = new Date(seedCampStart + "T00:00:00");
-    const end = new Date(seedCampEnd + "T00:00:00");
-    while (d <= end) {
-      const iso = d.toISOString().slice(0,10);
-      entries[iso] = {
-        weight: (iso === "2026-06-18") ? 280 : null,
-        extraCal: 0,
-        trainingCal: seedTrainingCal[iso] || 0,
-        notes: (iso === "2026-06-18") ? "DEXA baseline" : "",
-        trainingCalManual: false
-      };
-      d.setDate(d.getDate() + 1);
-    }
-    return entries;
-  }
+  const DEFAULT_SETTINGS = { campStart: "2026-07-15", campEnd: "2026-08-31", rmr: 2138, baseCal: 1500 };
 
-  function defaultState(){
-    return {
-      settingsVersion: 3,
-      settings: {
-        campStart: "2026-07-15", // official Archetype Boxing Summer Fight Camp window
-        campEnd: "2026-08-31",
-        rmr: 2138,
-        baseCal: 1500
-      },
-      entries: buildSeedEntries(),
-      lastSyncedThrough: seedCampEnd,
-      dexaScans: [
-        { date: "2026-06-18", label: "Pre-Camp Baseline", weight: 280, bf: 30.9, lean: 183.8 }
-      ]
-    };
-  }
-
-  function migrate(state){
-    let changed = false;
-    if (!state.settingsVersion || state.settingsVersion < 2) {
-      state.settings.campStart = "2026-07-15";
-      state.settings.campEnd = "2026-08-31";
-      delete state.settings.campWeeks;
-      state.settingsVersion = 2;
-      changed = true;
-    }
-    if (!state.settingsVersion || state.settingsVersion < 3) {
-      Object.keys(state.entries || {}).forEach(d => {
-        const e = state.entries[d];
-        if (e.trainingCalManual === undefined) {
-          e.trainingCalManual = (e.source === 'manual');
-        }
-      });
-      state.settingsVersion = 3;
-      changed = true;
-    }
-    if (!state.lastSyncedThrough) { state.lastSyncedThrough = seedCampStart; changed = true; }
-    return changed;
-  }
-
-  function load(){
-    let s;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      s = raw ? JSON.parse(raw) : null;
-    } catch(e) { s = null; }
-    if (!s) {
-      s = defaultState();
-      save(s);
-      return s;
-    }
-    let changed = migrate(s);
-    if (changed) save(s);
-    return s;
-  }
-  function save(state){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-
-  let state = load();
+  let state = { settings: null, entries: {}, dexaScans: [] };
+  let realtimeChannel = null;
+  let booted = false;
 
   function todayISO(){
     return new Date().toISOString().slice(0,10);
   }
 
-  function ensureToday(){
-    const t = todayISO();
-    if (!state.entries[t]) {
-      state.entries[t] = { weight: null, extraCal: 0, trainingCal: 0, notes: "", trainingCalManual: false };
-      save(state);
-    }
-  }
-  ensureToday();
-
   function fmt(n, d=0){
     if (n === null || n === undefined || isNaN(n)) return "—";
     return Number(n).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d});
+  }
+
+  function setSyncStatus(status, msg){
+    const el = document.getElementById('syncStatus');
+    if (!el) return;
+    if (status === 'ok') el.textContent = 'Synced ✓';
+    else if (status === 'saving') el.textContent = 'Saving…';
+    else if (status === 'importing') el.textContent = 'Importing existing data…';
+    else if (status === 'error') el.textContent = 'Sync error: ' + (msg || 'unknown');
+    else el.textContent = '';
+  }
+
+  // ---- Auth ----
+  function showLogin(){
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appRoot').style.display = 'none';
+  }
+  function showApp(){
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appRoot').style.display = '';
+    if (!booted) { booted = true; boot(); }
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    const email = document.getElementById('l_email').value.trim();
+    const password = document.getElementById('l_password').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) errEl.textContent = error.message;
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async function(){
+    await sb.auth.signOut();
+  });
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session) showApp(); else showLogin();
+  });
+
+  // ---- Data load ----
+  async function loadAllFromSupabase(){
+    const [entriesRes, dexaRes, settingsRes] = await Promise.all([
+      sb.from('entries').select('*'),
+      sb.from('dexa_scans').select('*'),
+      sb.from('settings').select('*').eq('id', 1)
+    ]);
+    if (entriesRes.error || dexaRes.error || settingsRes.error) {
+      setSyncStatus('error', (entriesRes.error || dexaRes.error || settingsRes.error).message);
+      return;
+    }
+    state.entries = {};
+    (entriesRes.data || []).forEach(r => {
+      state.entries[r.date] = {
+        weight: r.weight, extraCal: r.extra_cal || 0, trainingCal: r.training_cal || 0,
+        notes: r.notes || '', trainingCalManual: !!r.training_cal_manual
+      };
+    });
+    state.dexaScans = (dexaRes.data || []).map(r => ({ id: r.id, date: r.date, label: r.label, weight: r.weight, bf: r.bf, lean: r.lean }));
+
+    if (settingsRes.data && settingsRes.data[0]) {
+      const s = settingsRes.data[0];
+      state.settings = { campStart: s.camp_start, campEnd: s.camp_end, rmr: s.rmr, baseCal: s.base_cal };
+    } else {
+      state.settings = Object.assign({}, DEFAULT_SETTINGS);
+      await sb.from('settings').upsert({ id: 1, camp_start: state.settings.campStart, camp_end: state.settings.campEnd, rmr: state.settings.rmr, base_cal: state.settings.baseCal });
+    }
+    setSyncStatus('ok');
+  }
+
+  async function maybeOfferImport(){
+    const hasCloudData = Object.keys(state.entries).length > 0 || state.dexaScans.length > 0;
+    if (hasCloudData || localStorage.getItem(IMPORT_DISMISSED_KEY)) return;
+    let raw;
+    try { raw = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || 'null'); } catch(e) { raw = null; }
+    if (!raw || !raw.entries) { localStorage.setItem(IMPORT_DISMISSED_KEY, '1'); return; }
+    const dates = Object.keys(raw.entries);
+    if (dates.length === 0) { localStorage.setItem(IMPORT_DISMISSED_KEY, '1'); return; }
+
+    const ok = confirm(`Found ${dates.length} previously logged day(s) on this device that aren't in the cloud yet. Import them now?`);
+    localStorage.setItem(IMPORT_DISMISSED_KEY, '1');
+    if (!ok) return;
+
+    setSyncStatus('importing');
+    const entryRows = dates.map(d => {
+      const e = raw.entries[d];
+      return {
+        date: d, weight: (e.weight === '' ? null : e.weight), extra_cal: e.extraCal || 0,
+        training_cal: e.trainingCal || 0, notes: e.notes || '', training_cal_manual: !!e.trainingCalManual
+      };
+    });
+    if (entryRows.length) {
+      const { error } = await sb.from('entries').upsert(entryRows);
+      if (error) { setSyncStatus('error', error.message); }
+    }
+    const dexaRows = (raw.dexaScans || []).map(s => ({ date: s.date, label: s.label, weight: s.weight, bf: s.bf, lean: s.lean }));
+    if (dexaRows.length) {
+      const { error } = await sb.from('dexa_scans').insert(dexaRows);
+      if (error) { setSyncStatus('error', error.message); }
+    }
+    if (raw.settings) {
+      await sb.from('settings').upsert({
+        id: 1, camp_start: raw.settings.campStart, camp_end: raw.settings.campEnd,
+        rmr: raw.settings.rmr, base_cal: raw.settings.baseCal
+      });
+    }
+    await loadAllFromSupabase();
+  }
+
+  async function ensureToday(){
+    const t = todayISO();
+    if (!state.entries[t]) {
+      await upsertEntry(t, { weight: null, extraCal: 0, trainingCal: 0, notes: "", trainingCalManual: false });
+    }
+  }
+
+  function setupRealtime(){
+    if (realtimeChannel) return;
+    realtimeChannel = sb.channel('fightcamp-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'entries' }, () => loadAllFromSupabase().then(render))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dexa_scans' }, () => loadAllFromSupabase().then(render))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => loadAllFromSupabase().then(render))
+      .subscribe();
+  }
+
+  async function boot(){
+    await loadAllFromSupabase();
+    await maybeOfferImport();
+    await ensureToday();
+    document.getElementById('f_date').value = todayISO();
+    render();
+    setupRealtime();
+  }
+
+  // ---- Writes ----
+  async function upsertEntry(date, entry){
+    state.entries[date] = entry;
+    render();
+    setSyncStatus('saving');
+    const { error } = await sb.from('entries').upsert({
+      date, weight: entry.weight, extra_cal: entry.extraCal, training_cal: entry.trainingCal,
+      notes: entry.notes, training_cal_manual: entry.trainingCalManual
+    });
+    setSyncStatus(error ? 'error' : 'ok', error && error.message);
+  }
+
+  async function deleteEntryRemote(date){
+    delete state.entries[date];
+    render();
+    setSyncStatus('saving');
+    const { error } = await sb.from('entries').delete().eq('date', date);
+    setSyncStatus(error ? 'error' : 'ok', error && error.message);
+  }
+
+  async function deleteDexaRemote(id){
+    state.dexaScans = state.dexaScans.filter(s => s.id !== id);
+    render();
+    setSyncStatus('saving');
+    const { error } = await sb.from('dexa_scans').delete().eq('id', id);
+    setSyncStatus(error ? 'error' : 'ok', error && error.message);
   }
 
   function intakeFor(e){
@@ -583,9 +675,7 @@
     body.querySelectorAll('[data-del]').forEach(btn => {
       btn.addEventListener('click', () => {
         const d = btn.getAttribute('data-del');
-        delete state.entries[d];
-        save(state);
-        render();
+        deleteEntryRemote(d);
       });
     });
 
@@ -607,21 +697,19 @@
       body.innerHTML = `<tr><td colspan="6" class="empty-note">No DEXA scans logged.</td></tr>`;
       return;
     }
-    body.innerHTML = scans.map((s,i) => `
+    body.innerHTML = scans.map((s) => `
       <tr>
         <td>${s.date}</td>
         <td>${s.label||''}</td>
         <td class="num">${fmt(s.weight,1)} lbs</td>
         <td class="num">${fmt(s.bf,1)}%</td>
         <td class="num">${fmt(s.lean,1)} lbs</td>
-        <td><button class="btn-danger" data-ddel="${s.date}|${s.label}" title="Delete">✕</button></td>
+        <td><button class="btn-danger" data-ddel="${s.id}" title="Delete">✕</button></td>
       </tr>`).join('');
     body.querySelectorAll('[data-ddel]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const [d,l] = btn.getAttribute('data-ddel').split('|');
-        state.dexaScans = state.dexaScans.filter(s => !(s.date === d && (s.label||'') === l));
-        save(state);
-        render();
+        const id = Number(btn.getAttribute('data-ddel'));
+        deleteDexaRemote(id);
       });
     });
   }
@@ -646,7 +734,7 @@
     if (this.value) populateEntryForm(this.value);
   });
 
-  document.getElementById('entryForm').addEventListener('submit', function(ev){
+  document.getElementById('entryForm').addEventListener('submit', async function(ev){
     ev.preventDefault();
     const d = document.getElementById('f_date').value;
     if (!d) return;
@@ -670,13 +758,12 @@
 
     const notes = notesInput === '' ? (existing.notes || '') : notesInput;
 
-    state.entries[d] = { weight, extraCal, trainingCal, notes, trainingCalManual };
-    save(state);
+    await upsertEntry(d, { weight, extraCal, trainingCal, notes, trainingCalManual });
     this.reset();
-    render();
+    document.getElementById('f_date').value = todayISO();
   });
 
-  document.getElementById('addDexaBtn').addEventListener('click', function(){
+  document.getElementById('addDexaBtn').addEventListener('click', async function(){
     const d = document.getElementById('d_date').value;
     if (!d) return;
     const scan = {
@@ -686,22 +773,32 @@
       bf: Number(document.getElementById('d_bf').value || 0),
       lean: Number(document.getElementById('d_lean').value || 0)
     };
-    state.dexaScans = state.dexaScans || [];
-    state.dexaScans.push(scan);
-    if (!state.entries[d]) state.entries[d] = { weight: null, extraCal:0, trainingCal:0, notes:'', trainingCalManual:false };
-    if (!state.entries[d].weight) state.entries[d].weight = scan.weight;
-    if (!state.entries[d].notes) state.entries[d].notes = scan.label;
-    save(state);
+    setSyncStatus('saving');
+    const { data, error } = await sb.from('dexa_scans').insert(scan).select().single();
+    if (error) { setSyncStatus('error', error.message); return; }
+    state.dexaScans.push(data);
+    if (!state.entries[d]) {
+      await upsertEntry(d, { weight: scan.weight || null, extraCal: 0, trainingCal: 0, notes: scan.label, trainingCalManual: false });
+    } else if (!state.entries[d].weight) {
+      const e = Object.assign({}, state.entries[d], { weight: scan.weight, notes: state.entries[d].notes || scan.label });
+      await upsertEntry(d, e);
+    }
     ['d_date','d_label','d_weight','d_bf','d_lean'].forEach(id => document.getElementById(id).value = '');
+    setSyncStatus('ok');
     render();
   });
 
-  document.getElementById('saveSettingsBtn').addEventListener('click', function(){
+  document.getElementById('saveSettingsBtn').addEventListener('click', async function(){
     state.settings.campStart = document.getElementById('s_start').value || state.settings.campStart;
     state.settings.campEnd = document.getElementById('s_end').value || state.settings.campEnd;
     state.settings.rmr = Number(document.getElementById('s_rmr').value) || state.settings.rmr;
     state.settings.baseCal = Number(document.getElementById('s_base').value) || state.settings.baseCal;
-    save(state);
+    setSyncStatus('saving');
+    const { error } = await sb.from('settings').upsert({
+      id: 1, camp_start: state.settings.campStart, camp_end: state.settings.campEnd,
+      rmr: state.settings.rmr, base_cal: state.settings.baseCal
+    });
+    setSyncStatus(error ? 'error' : 'ok', error && error.message);
     render();
   });
 
@@ -722,17 +819,20 @@
     URL.revokeObjectURL(url);
   });
 
-  document.getElementById('resetBtn').addEventListener('click', function(){
-    if (!confirm('This wipes all logged data on this phone and restores the original seed. Are you sure?')) return;
-    state = defaultState();
-    ensureToday();
-    save(state);
+  document.getElementById('resetBtn').addEventListener('click', async function(){
+    if (!confirm('This permanently deletes ALL logged data in the cloud database (every device that syncs to it). This cannot be undone. Are you sure?')) return;
+    setSyncStatus('saving');
+    await sb.from('entries').delete().neq('date', '0000-00-00');
+    await sb.from('dexa_scans').delete().neq('id', -1);
+    state.settings = Object.assign({}, DEFAULT_SETTINGS);
+    await sb.from('settings').upsert({
+      id: 1, camp_start: state.settings.campStart, camp_end: state.settings.campEnd,
+      rmr: state.settings.rmr, base_cal: state.settings.baseCal
+    });
+    await loadAllFromSupabase();
+    await ensureToday();
     render();
   });
-
-  document.getElementById('f_date').value = todayISO();
-
-  render();
 
   // Register service worker for offline support (installed PWAs benefit most from this)
   if ('serviceWorker' in navigator) {
@@ -740,6 +840,11 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+
+  // Kick off: check for an existing session on load
+  sb.auth.getSession().then(({ data }) => {
+    if (data.session) showApp(); else showLogin();
+  });
 })();
 </script>
 </body>
