@@ -259,6 +259,7 @@
     <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <button class="btn-primary" id="saveSettingsBtn">Save Settings</button>
       <button class="btn-secondary" id="exportBtn" type="button">Export CSV</button>
+      <button class="btn-secondary" id="backfillBtn" type="button">Import Backfill Log</button>
       <button class="btn-secondary" id="resetBtn" type="button" style="color:var(--red);">Reset Cloud Data</button>
       <button class="btn-secondary" id="logoutBtn" type="button">Log Out</button>
       <span id="syncStatus"></span>
@@ -277,6 +278,12 @@
   const IMPORT_DISMISSED_KEY = 'fightcamp_import_dismissed';
 
   const DEFAULT_SETTINGS = { campStart: "2026-07-15", campEnd: "2026-08-31", rmr: 2138, baseCal: 1500 };
+
+  // One-time historical backfill, sourced from the old desktop tracker's CSV export
+  // (fight_camp_log.csv) plus its DEXA baseline. Imported via the "Import Backfill Log"
+  // settings button so it runs under the logged-in user's own session.
+  const BACKFILL_LOG = [{"date":"2026-06-17","weight":null,"extraCal":0,"trainingCal":576,"notes":""},{"date":"2026-06-18","weight":null,"extraCal":0,"trainingCal":586,"notes":""},{"date":"2026-06-19","weight":null,"extraCal":0,"trainingCal":537,"notes":""},{"date":"2026-06-20","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-06-21","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-06-22","weight":null,"extraCal":0,"trainingCal":1225,"notes":""},{"date":"2026-06-23","weight":null,"extraCal":0,"trainingCal":2365,"notes":""},{"date":"2026-06-24","weight":null,"extraCal":0,"trainingCal":1343,"notes":""},{"date":"2026-06-25","weight":null,"extraCal":0,"trainingCal":727,"notes":""},{"date":"2026-06-26","weight":null,"extraCal":0,"trainingCal":736,"notes":""},{"date":"2026-06-27","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-06-28","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-06-29","weight":null,"extraCal":0,"trainingCal":960,"notes":""},{"date":"2026-06-30","weight":null,"extraCal":0,"trainingCal":1087,"notes":""},{"date":"2026-07-01","weight":null,"extraCal":0,"trainingCal":1249,"notes":""},{"date":"2026-07-02","weight":null,"extraCal":0,"trainingCal":1607,"notes":""},{"date":"2026-07-03","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-07-04","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-07-05","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-07-06","weight":null,"extraCal":0,"trainingCal":868,"notes":""},{"date":"2026-07-07","weight":null,"extraCal":0,"trainingCal":1100,"notes":""},{"date":"2026-07-08","weight":null,"extraCal":0,"trainingCal":1133,"notes":""},{"date":"2026-07-09","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-07-10","weight":null,"extraCal":0,"trainingCal":869,"notes":""},{"date":"2026-07-11","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-07-12","weight":null,"extraCal":0,"trainingCal":0,"notes":""},{"date":"2026-07-13","weight":283.0,"extraCal":0,"trainingCal":1390,"notes":""},{"date":"2026-07-14","weight":281.0,"extraCal":160,"trainingCal":1644,"notes":""},{"date":"2026-07-15","weight":276.0,"extraCal":160,"trainingCal":2652,"notes":""},{"date":"2026-07-16","weight":null,"extraCal":0,"trainingCal":775,"notes":""},{"date":"2026-07-17","weight":273.0,"extraCal":500,"trainingCal":1539,"notes":""},{"date":"2026-07-18","weight":264.0,"extraCal":250,"trainingCal":1871,"notes":""},{"date":"2026-07-19","weight":null,"extraCal":0,"trainingCal":711,"notes":""},{"date":"2026-07-20","weight":264.0,"extraCal":1000,"trainingCal":1042,"notes":""},{"date":"2026-07-21","weight":275.0,"extraCal":160,"trainingCal":1027,"notes":""},{"date":"2026-07-22","weight":272.0,"extraCal":0,"trainingCal":1734,"notes":""},{"date":"2026-07-23","weight":272.0,"extraCal":0,"trainingCal":1988,"notes":""},{"date":"2026-07-24","weight":274.0,"extraCal":0,"trainingCal":1315,"notes":""},{"date":"2026-07-25","weight":272.0,"extraCal":1000,"trainingCal":1747,"notes":""},{"date":"2026-07-26","weight":272.0,"extraCal":0,"trainingCal":732,"notes":""},{"date":"2026-07-27","weight":273.0,"extraCal":0,"trainingCal":668,"notes":""},{"date":"2026-07-28","weight":272.0,"extraCal":500,"trainingCal":1019,"notes":""},{"date":"2026-07-29","weight":274.0,"extraCal":500,"trainingCal":1851,"notes":""},{"date":"2026-07-30","weight":268.0,"extraCal":1400,"trainingCal":1449,"notes":""},{"date":"2026-07-31","weight":269.0,"extraCal":500,"trainingCal":1293,"notes":""}];
+  const BACKFILL_DEXA = { date: "2026-06-18", label: "Pre-Camp Baseline", weight: 280, bf: 30.9, lean: 183.8 };
 
   let state = { settings: null, entries: {}, dexaScans: [] };
   let realtimeChannel = null;
@@ -817,6 +824,26 @@
     a.href = url; a.download = 'fight_camp_log.csv';
     a.click();
     URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('backfillBtn').addEventListener('click', async function(){
+    const ok = confirm(`Import ${BACKFILL_LOG.length} days of historical data (weights, calories, training) from the old tracker's log into the cloud? This overwrites any existing cloud entries for those specific dates.`);
+    if (!ok) return;
+    setSyncStatus('importing');
+    const rows = BACKFILL_LOG.map(r => ({
+      date: r.date, weight: r.weight, extra_cal: r.extraCal, training_cal: r.trainingCal,
+      notes: r.notes, training_cal_manual: false
+    }));
+    const { error } = await sb.from('entries').upsert(rows);
+    if (error) { setSyncStatus('error', error.message); return; }
+    const hasBaseline = state.dexaScans.some(s => s.date === BACKFILL_DEXA.date);
+    if (!hasBaseline) {
+      const { error: dexaErr } = await sb.from('dexa_scans').insert(BACKFILL_DEXA);
+      if (dexaErr) { setSyncStatus('error', dexaErr.message); return; }
+    }
+    await loadAllFromSupabase();
+    render();
+    setSyncStatus('ok');
   });
 
   document.getElementById('resetBtn').addEventListener('click', async function(){
