@@ -1,2 +1,5 @@
 # Local handoff log — references where secrets live, must stay off the public repo
 SESSION_NOTES.md
+
+# Generated preview build — 94KB with real data baked in, never commit
+_preview.html
