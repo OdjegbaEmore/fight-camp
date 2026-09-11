@@ -106,6 +106,11 @@
       <div class="bar"><div id="barFill"></div></div>
     </div>
 
+    <div class="card" id="wakeWarn" hidden style="border-color:var(--accent-line); background:var(--accent-surface);">
+      <div class="lab" style="color:var(--accent); margin-bottom:4px;">Screen lock is not held</div>
+      <div class="note">Round cues need the app in front. Keep the screen on for this session, or you will not hear the change.</div>
+    </div>
+
     <div class="row">
       <button class="btn-solid" id="startBtn" type="button">Start session</button>
       <button class="btn-ghost" id="pauseBtn" type="button" hidden>Pause</button>
@@ -249,9 +254,13 @@
   function cue(beeps){
     if (navigator.vibrate) { try { navigator.vibrate([120,80,120]); } catch(e){} }
     if (!audioCtx) return;
-    if (audioCtx.state === 'suspended') {
-      log('audio context suspended — cue could not sound');
-      audioCtx.resume().catch(function(){});
+    // iOS reports 'interrupted' as well as 'suspended' -- another call, Siri
+    // or a lock can park the context there, and only 'suspended' was handled
+    // in the first run, so every cue was silently dropped.
+    if (audioCtx.state !== 'running') {
+      log('audio context ' + audioCtx.state + ' — resuming, cue may be late');
+      audioCtx.resume().then(function(){ log('audio resumed: ' + audioCtx.state); },
+                            function(){ log('audio could not resume'); });
       return;
     }
     var t0 = audioCtx.currentTime;
@@ -281,10 +290,17 @@
       wakeLock = await navigator.wakeLock.request('screen');
       $('dWake').textContent = 'Held';
       $('dWake').className = 'v ok';
+      $('wakeWarn').hidden = true;
       log('wake lock acquired');
       wakeLock.addEventListener('release', function(){
+        // Must null it here. The re-acquire on foreground is guarded by
+        // `!wakeLock`, so leaving the released sentinel in place silently
+        // pins the session to whatever the first lock gave us -- 18 seconds
+        // of a 110-second session, in the first run of this prototype.
+        wakeLock = null;
         $('dWake').textContent = 'Released';
         $('dWake').className = 'v warn';
+        $('wakeWarn').hidden = false;
         log('wake lock released by the system');
       });
     } catch(err){
@@ -306,8 +322,18 @@
     naiveTicks = 0; hiddenMs = 0; missedChanges = 0; lastPhaseKey = '';
 
     try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      // Created inside the tap, which is the only moment iOS will allow it.
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Creating it is not enough. iOS hands back a suspended context and will
+      // only resume it inside a user gesture -- this tap is the one chance, so
+      // resume here and prime it with a silent buffer to force the unlock.
+      audioCtx.resume().then(function(){
+        $('dAudio').textContent = audioCtx.state;
+        log('audio context after resume: ' + audioCtx.state);
+      }, function(e){ log('audio resume refused: ' + e.message); });
+      var b = audioCtx.createBufferSource();
+      b.buffer = audioCtx.createBuffer(1, 1, 22050);
+      b.connect(audioCtx.destination);
+      b.start(0);
       $('dAudio').textContent = audioCtx.state;
       log('audio context created: ' + audioCtx.state);
     } catch(e){ log('audio unavailable: ' + e.message); }
@@ -392,7 +418,11 @@
     } else {
       if (hiddenAt) { hiddenMs += Date.now() - hiddenAt; hiddenAt = 0; }
       log('--- foregrounded after ' + ((hiddenMs)/1000).toFixed(1) + 's total away ---');
-      if (audioCtx) { $('dAudio').textContent = audioCtx.state; log('audio context: ' + audioCtx.state); }
+      if (audioCtx) {
+        log('audio context: ' + audioCtx.state);
+        if (audioCtx.state !== 'running') audioCtx.resume().catch(function(){});
+        $('dAudio').textContent = audioCtx.state;
+      }
       // A released wake lock cannot be re-requested while hidden; do it now.
       if (S && !wakeLock) acquireWakeLock();
       paint();
