@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Round Timer Prototype</title>
+<meta name="theme-color" content="#262221">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Direction 3b — see DESIGN.md. This is a throwaway test rig, but it is the
+     screen we may ship, so it is built to the real tokens. */
+  :root {
+    color-scheme: dark;
+    --ink:#262221; --paper:#e7e1df; --muted:#a5a09d;
+    --accent:#ef7059; --accent-hover:#d95c45;
+    --line:rgba(248,244,244,0.16); --line-soft:rgba(248,244,244,0.1);
+    --line-bar:rgba(248,244,244,0.18); --surface:rgba(248,244,244,0.03);
+    --accent-line:rgba(239,112,89,0.38); --accent-surface:rgba(239,112,89,0.06);
+    --ok:#7fb069; --warn:#e0a458;
+    --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+    --body:'Barlow',system-ui,-apple-system,sans-serif;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  body {
+    margin:0; background:var(--ink); color:var(--paper); font-family:var(--body);
+    font-size:15px; line-height:1.5; padding:env(safe-area-inset-top) 0 0;
+  }
+  .wrap { max-width:430px; margin:0 auto; padding:16px 22px calc(env(safe-area-inset-bottom) + 32px); }
+  .lab { font-family:var(--cond); font-size:12px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+  .h2 { font-family:var(--cond); font-size:24px; font-weight:600; margin:0; }
+  .head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:16px; }
+  .stack { display:flex; flex-direction:column; gap:14px; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  .card { border:1px solid var(--line); border-radius:6px; background:var(--surface); padding:12px 14px; }
+  .card-accent {
+    position:relative; border:1px solid var(--accent-line); border-radius:8px;
+    background:var(--accent-surface); padding:16px 18px; text-align:center;
+  }
+  .card-accent::before,.card-accent::after,.card-accent>.tl,.card-accent>.tr {
+    position:absolute; color:rgba(239,112,89,0.8); font-size:12px; line-height:1; pointer-events:none;
+  }
+  .card-accent::before{content:"+";top:-7px;left:-5px;} .card-accent::after{content:"+";top:-7px;right:-5px;}
+  .card-accent>.tl{bottom:-8px;left:-5px;} .card-accent>.tr{bottom:-8px;right:-5px;}
+  .card-accent>.tl::before,.card-accent>.tr::before{content:"+";}
+  .count {
+    font-family:var(--cond); font-size:92px; font-weight:600; line-height:0.95;
+    color:var(--accent); font-variant-numeric:tabular-nums;
+  }
+  .count.rest { color:var(--paper); }
+  .bar { height:8px; border:1px solid var(--line-bar); border-radius:3px; padding:1px; margin-top:10px; }
+  .bar > div { height:6px; background:var(--accent); border-radius:2px; width:0%; }
+  button {
+    cursor:pointer; font-family:var(--cond); font-size:15px; font-weight:600;
+    letter-spacing:0.06em; border-radius:6px; padding:12px 16px;
+  }
+  .btn-solid { background:var(--accent); color:var(--ink); border:1px solid var(--accent); }
+  .btn-solid:active { background:var(--accent-hover); }
+  .btn-ghost { background:var(--surface); color:var(--paper); border:1px solid var(--line); }
+  .btn-ghost:active { border-color:var(--accent); color:var(--accent); }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .kv { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft); }
+  .kv:last-child { border-bottom:0; }
+  .kv .k { font-family:var(--cond); font-size:13px; letter-spacing:0.04em; color:var(--muted); }
+  .kv .v { font-family:var(--cond); font-size:15px; font-variant-numeric:tabular-nums; text-align:right; }
+  .v.ok{color:var(--ok);} .v.warn{color:var(--warn);} .v.bad{color:var(--accent);}
+  #log {
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.6;
+    color:var(--muted); background:rgba(0,0,0,0.25); border:1px solid var(--line-soft);
+    border-radius:6px; padding:10px 12px; max-height:220px; overflow-y:auto; white-space:pre-wrap;
+  }
+  .note { font-size:12.5px; color:var(--muted); line-height:1.55; }
+  .seg { display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .seg button { flex:1; border:0; border-radius:0; background:transparent; color:var(--muted); font-size:13px; padding:9px 0; }
+  .seg button.on { background:var(--accent); color:var(--ink); }
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1 class="h2">Round timer</h1>
+    <span class="lab" id="roundLab">Ready</span>
+  </div>
+
+  <div class="stack">
+
+    <div class="card">
+      <div class="lab" style="margin-bottom:8px;">Test length</div>
+      <div class="seg" id="modeSeg">
+        <button type="button" data-w="20" data-r="10" data-n="4" class="on">Fast · 20s/10s ×4</button>
+        <button type="button" data-w="180" data-r="60" data-n="8">Real · 3:00/1:00 ×8</button>
+      </div>
+    </div>
+
+    <div class="card-accent">
+      <span class="tl"></span><span class="tr"></span>
+      <div class="lab" id="phaseLab">Not started</div>
+      <div class="count" id="count">0:00</div>
+      <div class="bar"><div id="barFill"></div></div>
+    </div>
+
+    <div class="row">
+      <button class="btn-solid" id="startBtn" type="button">Start session</button>
+      <button class="btn-ghost" id="pauseBtn" type="button" hidden>Pause</button>
+    </div>
+    <div class="row">
+      <button class="btn-ghost" id="skipBtn" type="button" hidden>Skip round</button>
+      <button class="btn-ghost" id="endBtn" type="button" hidden>End</button>
+    </div>
+
+    <div class="card">
+      <div class="lab" style="margin-bottom:6px;">The test</div>
+      <div class="note">
+        Start the session, then <strong>lock your phone</strong> (or switch apps) for 30–60 seconds and come
+        back. The timer is driven by the wall clock, so it should be exactly where it would have been.
+        The diagnostics below record what actually happened while you were away.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lab" style="margin-bottom:4px;">Diagnostics</div>
+      <div class="kv"><span class="k">Wake lock</span><span class="v" id="dWake">—</span></div>
+      <div class="kv"><span class="k">Wall clock elapsed</span><span class="v" id="dWall">—</span></div>
+      <div class="kv"><span class="k">Naive tick count</span><span class="v" id="dTicks">—</span></div>
+      <div class="kv"><span class="k">Drift (ticks vs clock)</span><span class="v" id="dDrift">—</span></div>
+      <div class="kv"><span class="k">Time backgrounded</span><span class="v" id="dHidden">—</span></div>
+      <div class="kv"><span class="k">Round changes missed while away</span><span class="v" id="dMissed">—</span></div>
+      <div class="kv"><span class="k">Audio context</span><span class="v" id="dAudio">—</span></div>
+      <div class="kv"><span class="k">Vibration API</span><span class="v" id="dVibe">—</span></div>
+    </div>
+
+    <div class="card">
+      <div class="lab" style="margin-bottom:8px;">Event log</div>
+      <div id="log">waiting…</div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn-ghost" id="copyBtn" type="button">Copy log</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ── The whole point ──────────────────────────────────────────────────────
+  // Never accumulate time. iOS Safari throttles and then suspends timers in a
+  // backgrounded PWA, so anything built on "add one second per tick" silently
+  // falls behind and the round is wrong when you come back. State here is a
+  // single epoch timestamp; every frame recomputes position from Date.now().
+  // setInterval only decides how often we repaint.
+
+  var cfg = { work:20, rest:10, rounds:4 };
+  var S = null;              // session, or null
+  var naiveTicks = 0;        // deliberately naive counter, to show the drift
+  var hiddenMs = 0, hiddenAt = 0, missedChanges = 0;
+  var wakeLock = null, audioCtx = null, lastPhaseKey = '';
+  var logLines = [];
+
+  function $(id){ return document.getElementById(id); }
+
+  function log(msg){
+    var t = new Date().toLocaleTimeString(undefined,{hour12:false});
+    logLines.push('[' + t + '] ' + msg);
+    if (logLines.length > 200) logLines.shift();
+    var el = $('log');
+    el.textContent = logLines.join('\n');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function mmss(sec){
+    sec = Math.max(0, Math.ceil(sec));
+    var m = Math.floor(sec/60), s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // Where are we, given only the clock?
+  function positionAt(now){
+    var cycle = cfg.work + cfg.rest;
+    var total = cfg.rounds * cycle - cfg.rest;      // no trailing rest
+    var elapsed = (now - S.startedAt - S.pausedMs) / 1000;
+    if (S.pausedAt) elapsed = (S.pausedAt - S.startedAt - S.pausedMs) / 1000;
+    elapsed = Math.max(0, elapsed);
+    if (elapsed >= total) return { done:true, elapsed:total, round:cfg.rounds, phase:'done', remaining:0, total:total };
+    var idx = Math.floor(elapsed / cycle);
+    var into = elapsed - idx * cycle;
+    var isWork = into < cfg.work;
+    return {
+      done:false, elapsed:elapsed, total:total,
+      round: idx + 1,
+      phase: isWork ? 'work' : 'rest',
+      remaining: isWork ? cfg.work - into : cycle - into
+    };
+  }
+
+  function paint(){
+    if (!S) return;
+    var p = positionAt(Date.now());
+    var key = p.phase + p.round;
+
+    if (p.done) {
+      $('count').textContent = '0:00';
+      $('phaseLab').textContent = 'Session complete';
+      $('barFill').style.width = '100%';
+      $('roundLab').textContent = 'Done';
+      if (lastPhaseKey !== 'done') { lastPhaseKey = 'done'; cue(3); log('SESSION COMPLETE'); }
+      stop(true);
+      return;
+    }
+
+    $('count').textContent = mmss(p.remaining);
+    $('count').className = 'count' + (p.phase === 'rest' ? ' rest' : '');
+    $('phaseLab').textContent = (p.phase === 'work' ? 'Work' : 'Rest') + ' · round ' + p.round;
+    $('roundLab').textContent = 'Round ' + p.round + ' / ' + cfg.rounds;
+    $('barFill').style.width = Math.min(100, (p.elapsed / p.total) * 100) + '%';
+
+    if (key !== lastPhaseKey) {
+      if (lastPhaseKey) {
+        // Did this boundary pass while we were not looking?
+        var away = document.visibilityState === 'hidden';
+        if (away) missedChanges++;
+        log('→ ' + p.phase.toUpperCase() + ' round ' + p.round + (away ? '  (while backgrounded)' : ''));
+        cue(p.phase === 'work' ? 2 : 1);
+      }
+      lastPhaseKey = key;
+    }
+
+    // diagnostics
+    var wallSec = (Date.now() - S.startedAt) / 1000;
+    $('dWall').textContent = wallSec.toFixed(1) + ' s';
+    $('dTicks').textContent = naiveTicks + ' s';
+    var drift = naiveTicks - wallSec;
+    var d = $('dDrift');
+    d.textContent = (drift >= 0 ? '+' : '') + drift.toFixed(1) + ' s';
+    d.className = 'v ' + (Math.abs(drift) < 1.5 ? 'ok' : Math.abs(drift) < 5 ? 'warn' : 'bad');
+    $('dHidden').textContent = (hiddenMs/1000).toFixed(1) + ' s';
+    $('dMissed').textContent = String(missedChanges);
+  }
+
+  // ── cues ────────────────────────────────────────────────────────────────
+  function cue(beeps){
+    if (navigator.vibrate) { try { navigator.vibrate([120,80,120]); } catch(e){} }
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') {
+      log('audio context suspended — cue could not sound');
+      audioCtx.resume().catch(function(){});
+      return;
+    }
+    var t0 = audioCtx.currentTime;
+    for (var i = 0; i < beeps; i++){
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, t0 + i*0.18);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + i*0.18 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + i*0.18 + 0.14);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t0 + i*0.18); o.stop(t0 + i*0.18 + 0.16);
+    }
+  }
+
+  // ── wake lock ───────────────────────────────────────────────────────────
+  // The realistic answer for a workout timer is to stop the screen locking in
+  // the first place, rather than to fight backgrounding.
+  async function acquireWakeLock(){
+    if (!('wakeLock' in navigator)) {
+      $('dWake').textContent = 'Unsupported';
+      $('dWake').className = 'v warn';
+      log('Screen Wake Lock API not available on this browser');
+      return;
+    }
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      $('dWake').textContent = 'Held';
+      $('dWake').className = 'v ok';
+      log('wake lock acquired');
+      wakeLock.addEventListener('release', function(){
+        $('dWake').textContent = 'Released';
+        $('dWake').className = 'v warn';
+        log('wake lock released by the system');
+      });
+    } catch(err){
+      $('dWake').textContent = 'Refused';
+      $('dWake').className = 'v bad';
+      log('wake lock refused: ' + err.name + ' — ' + err.message);
+    }
+  }
+  function releaseWakeLock(){
+    if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
+  }
+
+  // ── lifecycle ───────────────────────────────────────────────────────────
+  var painter = null, ticker = null;
+
+  function start(){
+    cfg = readCfg();
+    S = { startedAt: Date.now(), pausedMs: 0, pausedAt: 0 };
+    naiveTicks = 0; hiddenMs = 0; missedChanges = 0; lastPhaseKey = '';
+
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Created inside the tap, which is the only moment iOS will allow it.
+      $('dAudio').textContent = audioCtx.state;
+      log('audio context created: ' + audioCtx.state);
+    } catch(e){ log('audio unavailable: ' + e.message); }
+
+    acquireWakeLock();
+
+    painter = setInterval(paint, 200);
+    ticker  = setInterval(function(){ naiveTicks++; }, 1000);
+
+    $('startBtn').hidden = true;
+    $('pauseBtn').hidden = false;
+    $('skipBtn').hidden = false;
+    $('endBtn').hidden = false;
+    log('session started — work ' + cfg.work + 's, rest ' + cfg.rest + 's, ' + cfg.rounds + ' rounds');
+    lastPhaseKey = 'work1';
+    paint();
+    cue(1);
+  }
+
+  function stop(completed){
+    clearInterval(painter); clearInterval(ticker);
+    painter = ticker = null;
+    releaseWakeLock();
+    $('startBtn').hidden = false;
+    $('startBtn').textContent = 'Start again';
+    $('pauseBtn').hidden = true;
+    $('skipBtn').hidden = true;
+    $('endBtn').hidden = true;
+    if (!completed) log('session ended early');
+    S = null;
+  }
+
+  function readCfg(){
+    var b = document.querySelector('#modeSeg button.on');
+    return { work:Number(b.dataset.w), rest:Number(b.dataset.r), rounds:Number(b.dataset.n) };
+  }
+
+  $('modeSeg').addEventListener('click', function(ev){
+    var b = ev.target.closest('button'); if (!b || S) return;
+    document.querySelectorAll('#modeSeg button').forEach(function(x){ x.classList.toggle('on', x === b); });
+  });
+
+  $('startBtn').addEventListener('click', start);
+
+  $('pauseBtn').addEventListener('click', function(){
+    if (!S) return;
+    if (S.pausedAt) {
+      S.pausedMs += Date.now() - S.pausedAt;
+      S.pausedAt = 0;
+      this.textContent = 'Pause';
+      log('resumed');
+    } else {
+      S.pausedAt = Date.now();
+      this.textContent = 'Resume';
+      log('paused');
+    }
+  });
+
+  $('skipBtn').addEventListener('click', function(){
+    if (!S) return;
+    var p = positionAt(Date.now());
+    // Rewind the start so the clock lands at the next boundary. Still one
+    // timestamp, still no accumulation.
+    S.startedAt -= p.remaining * 1000;
+    log('skipped to next phase');
+    paint();
+  });
+
+  $('endBtn').addEventListener('click', function(){ stop(false); });
+
+  $('copyBtn').addEventListener('click', function(){
+    var txt = logLines.join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(
+      function(){ log('log copied to clipboard'); },
+      function(){ log('clipboard refused — select the text manually'); });
+  });
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+      log('--- backgrounded ---');
+    } else {
+      if (hiddenAt) { hiddenMs += Date.now() - hiddenAt; hiddenAt = 0; }
+      log('--- foregrounded after ' + ((hiddenMs)/1000).toFixed(1) + 's total away ---');
+      if (audioCtx) { $('dAudio').textContent = audioCtx.state; log('audio context: ' + audioCtx.state); }
+      // A released wake lock cannot be re-requested while hidden; do it now.
+      if (S && !wakeLock) acquireWakeLock();
+      paint();
+    }
+  });
+
+  $('dVibe').textContent = navigator.vibrate ? 'Available' : 'Not supported';
+  $('dVibe').className = 'v ' + (navigator.vibrate ? 'ok' : 'warn');
+  $('dWake').textContent = ('wakeLock' in navigator) ? 'Supported' : 'Unsupported';
+  $('dWake').className = 'v ' + (('wakeLock' in navigator) ? '' : 'warn');
+  log('prototype ready · ' + navigator.userAgent);
+})();
+</script>
+</body>
+</html>
