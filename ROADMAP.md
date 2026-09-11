@@ -66,11 +66,22 @@ branch, verify against live data, merge when Today/Progress render correctly.
 ## Phase 2 — Train
 
 6. **Templates + Builder** — `workout_templates` table; rounds as ordered JSON. Drag to reorder.
-7. **Session runner.** ⚠ **The one real technical risk.** The spec requires the timer to survive
-   a locked screen; iOS Safari suspends JS timers in a backgrounded PWA. Build wall-clock
-   style: persist `startedAt`, compute elapsed on resume, drive round changes with scheduled
-   audio + vibration. Never trust `setInterval` to have ticked. Prototype this *first* — if it
-   can't be made reliable, the screen needs redesigning around it.
+7. **Session runner.** ✅ **Feasibility settled 2026-09-11** — prototyped on a real iPhone
+   (iOS 26.6.1) via `prototype-timer.html`. Timing is exact, the screen stays awake and cues
+   sound. No redesign needed. Four rules came out of it and all four are load-bearing:
+   - **Never accumulate time.** One epoch timestamp; recompute from `Date.now()` every
+     repaint. Verified across 41.8s backgrounded over two locks — every boundary after
+     resume landed exactly on time. Timers ran through one lock and were suspended through
+     the next, which is precisely why they can't be trusted.
+   - **Null the wake lock in its `release` handler**, or the re-acquire guarded by
+     `!wakeLock` never fires. Cost 18 seconds of held lock out of 110 in the first run.
+   - **Unlock audio inside the Start gesture** — `resume()` plus a silent 1-frame buffer.
+     Creating the context there is not enough; iOS returns it suspended.
+   - **Treat any non-`running` state as needing a resume.** iOS parks the context in
+     `interrupted`, not only `suspended`.
+
+   A round timer you cannot hear is useless on a bag, so cues are load-bearing and the
+   screen staying on is load-bearing: the runner must warn visibly when the lock is lost.
 8. **Myzone history** — already-synced data, with the segmented 30 days / Camp / All.
 
 ## Phase 3 — Fuel
