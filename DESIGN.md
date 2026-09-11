@@ -1,14 +1,27 @@
-# Fight Camp Tracker — Design System
+# Fight Camp — Design System
 
-**Direction 2a — "Modernist × Industry"**
-Source: `fight-camp-asset-pack.html` (one level up from this repo, not committed — it's a 676KB self-extracting bundle).
+**Direction 3b — "softened"**
+Source of record: `Fight Camp App.dc.html` in the `design_handoff_fight_camp_tracker` bundle
+(19 screens, five tabs, both Today modes), with `Fight Camp Asset Pack.dc.html` as the
+component vocabulary behind it.
 
-> Red readout on a technical board. Square corners, hairline rules, registration marks,
-> condensed labels. The red carries the numbers that matter and the one solid action;
-> everything else is line and ink.
+> Dark ground, warm coral accent, soft-cornered cards over hairline rules. The accent carries
+> live values, the active state, and exactly one primary fill per screen.
 
 The app is **dark-only**. There is no light theme and none is planned — don't add
 `prefers-color-scheme` branches.
+
+---
+
+## ⚠ This supersedes Direction 2a (2026-09-11)
+
+Everything before this was **Direction 2a, "Modernist × Industry"** — accent `#ff563c`, ink
+`#201e1d`, and *square corners everywhere*. The 3b handoff replaced all of it. There are zero
+occurrences of the 2a palette in the design of record.
+
+If you find 2a values or square-corner rules anywhere in the codebase, they are **leftovers to
+migrate, not a second valid style.** The two cannot be mixed: 2a's hard corners next to 3b's
+6px cards reads as a rendering bug rather than a choice.
 
 ---
 
@@ -16,85 +29,110 @@ The app is **dark-only**. There is no light theme and none is planned — don't 
 
 | Token | Hex | Use |
 |---|---|---|
-| `--accent` | `#ff563c` | The readout red. Hero figures, active tab, primary action, the one solid fill. |
-| `--accent-dark` | `#dd2b0f` | Pressed / active state of a solid accent control. |
-| `--ink` | `#201e1d` | App ground (warm near-black). |
-| `--deep` | `#0d0c0c` | Recessed surfaces, device bezel, sheet backdrop. |
-| `--paper` | `#f8f4f4` | Primary text on the dark ground. |
-| `--muted` | `#9b9797` | Labels, units, secondary text. The most-used color in the system. |
+| `--ink` | `#262221` | Screen background; text *on* accent fills |
+| `--paper` | `#e7e1df` | Primary text on the dark ground |
+| `--muted` | `#a5a09d` | Secondary text, labels, empty values. The most-used color. |
+| `--accent` | `#ef7059` | Live values, active state, one primary fill per screen |
+| `--accent-hover` | `#d95c45` | Primary button hover / pressed |
+| `--bezel` | `#0d0c0c` | Device bezel — **design-board scaffolding only, never built** |
 
-Derived lines, always from `--paper` at low alpha — never a new grey:
+Derived lines and fills, always from `--paper` at low alpha — never a new grey:
 
 | Token | Value | Use |
 |---|---|---|
-| `--rule` | `rgba(248,244,244,0.25)` | Hairline. Cell borders, input borders, dividers. |
-| `--rule-heavy` | `rgba(248,244,244,0.4)` | 2px structural break. Tab bar top, section splits. |
-| `--rule-faint` | `rgba(248,244,244,0.15)` | Table row separators, skeleton fills. |
+| `--line` | `rgba(248,244,244,0.16)` | Card borders, dividers |
+| `--line-soft` | `rgba(248,244,244,0.1)` | List row rules |
+| `--line-bar` | `rgba(248,244,244,0.18)` | Progress bar outline |
+| `--rule` | `rgba(248,244,244,0.14)` | Pull-quote rules |
+| `--surface` | `rgba(248,244,244,0.03)` | Card fill |
+| `--accent-line` | `rgba(239,112,89,0.38)` | Accent card border |
+| `--accent-surface` | `rgba(239,112,89,0.06)` | Accent card fill |
 
-**The red is not decoration.** It marks the number that matters on a screen, the active
-tab, and the primary action — nothing else. A screen with red in four places has a
-hierarchy problem, not a color problem.
+**The accent is not decoration.** It marks live values, the active tab or segment, and the
+single primary action. A screen with coral in five places has a hierarchy problem.
 
 ## Type
 
-Two faces do all the work. Archivo, Figtree, and Caprasimo ship in the asset pack but
-are unused in 2a — don't introduce them.
+**Barlow Condensed** — all labels, numerals, titles.
+**Barlow** — body copy, notes, anything sentence-shaped.
+Google Fonts, weights 400/500/600/700. `sw.js` caches `fonts.gstatic.com`; if the font URL
+changes, update the service worker too.
 
-**Barlow Condensed** — every label, every heading, every large numeral.
-- Labels: 12–14px, weight 500–600, `text-transform: uppercase`, `letter-spacing: 0.12em–0.20em`
-- Section headings: 24px, weight 600, uppercase, `letter-spacing: 0.04em`
-- Hero numerals: 56–94px, weight 600, `line-height: 0.9`, `font-variant-numeric: tabular-nums`
-- Cell numerals: 24–32px, weight 600
+| Role | Spec |
+|---|---|
+| Screen title | Barlow Condensed 24 / 600 / 0.005em |
+| Section eyebrow | Barlow Condensed 12 / uppercase / 0.1em / muted |
+| Hero numeral | Barlow Condensed 52–92 / 600 / tabular-nums |
+| Card numeral | Barlow Condensed 24–30 / 600 / tabular-nums |
+| List item title | Barlow Condensed 17 / 0.01em |
+| Focus title | Barlow Condensed 26–34 / 600 |
+| Body | Barlow 12.5–15.5 / line-height 1.5 |
+| Pull quote | Barlow 21 / line-height 1.32 |
+| Footnote | Barlow 11–12 / muted |
+| Tab label | Barlow Condensed 13 / 0.07em |
 
-**Barlow** — body copy, notes, anything sentence-shaped. 13–15px, `line-height: 1.6`.
-
-Loaded from Google Fonts. `sw.js` caches `fonts.gstatic.com` so the typography survives
-offline — if you change the font URL, update the service worker too.
-
-Every figure that can be compared column-to-column gets `font-variant-numeric: tabular-nums`.
+Every numeral gets `font-variant-numeric: tabular-nums`.
 
 ## Grammar
 
-The details that make it this system rather than a generic dark theme:
+- **Soft corners.** 6px cards and buttons, 8px accent/framed cards, 99px pills, 3px progress
+  bars. (2a's "no radius anywhere" rule is dead — see the supersede note.)
+- **Register marks.** Accent cards carry four small `+` marks in `rgba(239,112,89,0.8)`,
+  absolutely positioned outside the border (top/bottom −7/−8px, left/right −5px, 12px).
+  Sparingly — on the card the screen exists to show.
+- **1px borders throughout. No shadows anywhere.**
+- **Uppercase condensed eyebrow** above values. Eyebrow `--muted`, value `--paper`, or
+  `--accent` when it's the number that matters.
+- **Progress bars** are a 1px-bordered box with an inset accent fill: 6px tall / 4px fill on
+  breakdown rows, 8px / 6px fill on weigh-in.
+- **Segmented controls** single-select; active segment filled `--accent` with `--ink` text at 600.
+- **Buttons.** Primary = `--accent` fill, `--ink` text, radius 6, Barlow Condensed 15/600,
+  0.06em, `padding: 12px 0`. Ghost = 1px `--line`, `--surface` fill, `--paper` text, hover
+  border+text `--accent`.
 
-- **Square corners.** No `border-radius` anywhere in the UI. The only rounded things are
-  the app icon and the phone bezel in mockups.
-- **Registration marks.** A box holding a key figure gets a `+` in each corner, in
-  `--accent`, offset outside the border (`top:-7px; left:-5px`). Its border is
-  `1px solid rgba(255,86,60,0.6)` — accent at 60%, not full. Use sparingly: at most one
-  or two per screen, on the figure the screen exists to show.
-- **Hairline grids.** Stat groups are a CSS grid with 1px borders between cells, not
-  gapped cards. Cells share edges.
-- **2px rules** separate major regions. 1px separates peers.
-- **Uppercase condensed labels** above every value. The label is `--muted`, the value is
-  `--paper` (or `--accent` if it's the number that matters).
-- **Progress bars** are a 1px-bordered box with a solid accent fill inset — not a rounded
-  track.
+## Spacing
+
+Scale: 4 / 6 / 9 / 12 / 18 / 22px. Screen padding `16–18px 22px`. Column gap 9px on dense
+screens, 18px on off-season Today. Card padding `9–16px 13–18px`. List rows `10–11px 0`.
 
 ## Layout
 
-Four tabs, hash-routed: `#/today`, `#/log`, `#/trend`, `#/camp`.
+Five tabs, bottom bar always visible: **Today · Train · Fuel · Progress · More**.
+Active `--accent`, inactive `--muted`. Bar has a 1px top border `--line` and
+`padding: 12px 16px 30px` (bottom = home indicator; use `env(safe-area-inset-bottom)`).
 
-| Tab | Holds |
+| Tab | Screens |
 |---|---|
-| **Today** | Camp day, net deficit hero, weigh-in countdown, 2×2 stat grid, the daily entry form |
-| **Log** | Full daily table, newest first, with auto/manual state per row |
-| **Trend** | Weight chart, calorie chart, DEXA checkpoints |
-| **Camp** | Settings, export, backfill, reset, log out, sync status |
+| **Today** | Off-season · Fight camp mode |
+| **Train** | Templates · Builder · Session runner · Myzone history · Reservations · Tips library |
+| **Fuel** | Food diary · Add food · Cookbook · Recipe detail · Meal plans |
+| **Progress** | Weight & DEXA · Calories · Camp mode |
+| **More** | News feed · Article reader · Settings |
 
-Tab bar is fixed to the bottom, `2px solid var(--rule-heavy)` on top, with
-`padding-bottom: env(safe-area-inset-bottom)`. Active item is `--accent`; the rest are
-`--muted`.
+**Two modes.** Off-season Today is a training companion (weekly focus, quote, next session,
+breakdown). Fight Camp Mode adds the weight-cut telemetry — net deficit hero, weigh-in
+progress, 2×2 metric grid. **Those never render outside camp mode** (`campMode.active`).
 
-Inputs must stay at `font-size: 16px` — anything smaller makes iOS Safari zoom on focus.
+Inputs must stay at `font-size: 16px` — smaller makes iOS Safari zoom on focus.
+Touch targets: 36px in the mocks, **44px in the build**.
 
-## Not yet designed
+## Deliberately cut — do not reintroduce
 
-- **Log** and **Camp** tabs appear in the asset pack's nav bar but have no mockup. Their
-  current implementation derives from the grammar above rather than a drawn screen.
-- **Recipe center** and **Activity breakdown** exist in the pack marked
-  *"Template · not wired"* — layout shells with data slots drawn, not filled. Future
-  features, not built.
-- **App icons** (`icon-192.png`, `icon-512.png`, `apple-touch-icon.png`) are still the old
-  `#c8102e` red. The pack specifies an accent field with an ink "FC" in Barlow Condensed
-  600 and a single registration tick, at 1024 / 192 / 76px. These need regenerating.
+Confirmed by the user 2026-09-11:
+
+- **Class booking.** No Book button, no booking screen. Reservations is read-only.
+- **Barcode scanning** in Add Food. Favourites and Search only.
+- **Perkville rewards**, anywhere, including the Settings connections list.
+
+## Added back after the handoff
+
+- **Weigh-in entry.** The handoff has no way to log a weight — 19 screens, all read-only.
+  Per the user (2026-09-11) this lives as a **button on Progress**, opening the entry control.
+  Carry over the current build's ±0.5 stepper and `Prev X · Δ ±Y` readout; it's the
+  interaction already in daily use.
+
+## Scaffolding — never build
+
+The `.dc.html` boards are canvas-style: 390×844 phone frames side by side with bezels, fake
+status bars, headings, captions and badges. Build only what's inside each 370×824 screen,
+minus the status bar.
