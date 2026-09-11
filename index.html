@@ -217,6 +217,35 @@
   .wo-v { font-family: var(--cond); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 1px; }
   .wo-v small { font-size: 11px; color: var(--muted); font-weight: 500; }
 
+  /* ── train ── */
+  .seg { display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .seg button { flex:1; border:0; border-radius:0; background:transparent; color:var(--muted); font-size:13px; padding:9px 0; letter-spacing:0.07em; }
+  .seg button.on { background:var(--accent); color:var(--ink); font-weight:600; }
+  .btn-dashed {
+    width:100%; background:transparent; border:1px dashed rgba(248,244,244,0.2);
+    color:var(--muted); border-radius:6px; font-size:13px; padding:11px 0;
+  }
+  .btn-dashed:active { border-color:var(--accent); color:var(--accent); }
+  .note-sm { font-size:12px; color:var(--muted); line-height:1.5; }
+  .round-row { gap:8px; }
+  .round-name {
+    flex:1; min-width:0; background:transparent; border:0; border-bottom:1px solid transparent;
+    color:var(--paper); font-family:var(--cond); font-size:16px; padding:2px 0;
+  }
+  .round-name:focus { outline:none; border-bottom-color:var(--accent); }
+  .round-secs {
+    width:64px; background:transparent; border:1px solid var(--line); border-radius:6px;
+    color:var(--paper); font-family:var(--cond); font-size:16px; padding:5px 7px;
+    text-align:right; font-variant-numeric:tabular-nums;
+  }
+  .round-secs:focus { border-color:var(--accent); outline:none; }
+  .run-count {
+    font-family:var(--cond); font-size:92px; font-weight:600; line-height:0.95;
+    color:var(--accent); font-variant-numeric:tabular-nums;
+  }
+  .run-count.rest { color:var(--paper); }
+  [data-tpl] { cursor:pointer; }
+
   /* ── tables ── */
   .tbl-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-family: var(--cond); }
@@ -379,14 +408,91 @@
         <h2 class="h2">Train</h2>
         <span class="when" id="tr_count">— —</span>
       </div>
+
       <div class="stack">
-        <div class="card">
-          <div class="lab">Templates · builder · session runner</div>
-          <div class="empty-note">Custom workouts arrive in Phase 2, along with the round timer and the tips library.</div>
+        <div class="seg" id="tr_seg">
+          <button type="button" data-pane="templates" class="on">Templates</button>
+          <button type="button" data-pane="runner">Runner</button>
+          <button type="button" data-pane="history">History</button>
         </div>
-        <div class="stack-tight">
-          <span class="lab">Recent Myzone sessions</span>
-          <div id="tr_history"></div>
+
+        <!-- templates -->
+        <div id="tr_templates" class="stack-tight">
+          <span class="lab">My templates</span>
+          <div id="tpl_list"></div>
+          <button class="btn-dashed" id="tpl_new" type="button">+ New template</button>
+        </div>
+
+        <!-- builder -->
+        <div id="tr_builder" class="stack-tight" hidden>
+          <div class="row-between">
+            <span class="lab">Builder</span>
+            <span class="lab"><span id="b_rounds_n">0</span> rounds · <span id="b_total">0 min</span></span>
+          </div>
+          <div class="field"><label for="b_name">Template name</label><input type="text" id="b_name" placeholder="e.g. Mitts · 8 rounds"></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div class="field"><label for="b_work">Work (seconds)</label><input type="number" id="b_work" inputmode="numeric" min="5" step="5"></div>
+            <div class="field"><label for="b_rest">Rest (seconds)</label><input type="number" id="b_rest" inputmode="numeric" min="0" step="5"></div>
+          </div>
+          <span class="lab">Rounds</span>
+          <div id="b_list"></div>
+          <button class="btn-dashed" id="b_add" type="button">+ Add round</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-ghost" id="b_save" type="button">Save template</button>
+            <button class="btn-quiet" id="b_discard" type="button">Discard</button>
+            <button class="btn-quiet" id="b_delete" type="button" hidden>Remove</button>
+          </div>
+          <button class="btn-solid" id="b_start" type="button">Start session</button>
+          <div class="note-sm">Rest is inserted between work rounds automatically, so the list above stays about the work.</div>
+        </div>
+
+        <!-- runner -->
+        <div id="tr_runner" hidden>
+          <div id="run_idle" class="card">
+            <div class="lab">No session running</div>
+            <div class="empty-note">Open a template and press Start session.</div>
+          </div>
+
+          <div id="run_live" class="stack-tight" hidden>
+            <div class="row-between">
+              <span class="lab" id="run_title">—</span>
+              <span class="lab" id="run_round">—</span>
+            </div>
+
+            <div class="card-accent" style="text-align:center;">
+              <span class="tick-l"></span><span class="tick-r"></span>
+              <div class="lab" id="run_phase">—</div>
+              <div class="run-count" id="run_count">0:00</div>
+              <div class="bar-track" style="margin-top:10px;"><div class="bar-fill" id="run_bar" style="width:0%"></div></div>
+            </div>
+
+            <div id="run_warn" class="card" hidden style="border-color:var(--accent-line); background:var(--accent-surface);">
+              <div class="lab" style="color:var(--accent); margin-bottom:4px;">Cues may not sound</div>
+              <div class="note-sm" id="run_warn_body">—</div>
+            </div>
+
+            <div class="grid2">
+              <div><div class="lab">Elapsed</div><div class="cell-v" id="run_elapsed">0:00</div></div>
+              <div><div class="lab">Remaining</div><div class="cell-v" id="run_left">0:00</div></div>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+              <button class="btn-ghost" id="run_pause" type="button" style="flex:1;">Pause</button>
+              <button class="btn-ghost" id="run_skip" type="button" style="flex:1;">Skip round</button>
+            </div>
+            <button class="btn-quiet" id="run_end" type="button">End early</button>
+
+            <span class="lab">Queue</span>
+            <div id="run_queue"></div>
+          </div>
+        </div>
+
+        <!-- history -->
+        <div id="tr_history" class="stack-tight" hidden>
+          <span class="lab">Template sessions</span>
+          <div id="h_sessions"></div>
+          <span class="lab" style="margin-top:6px;">Myzone sessions</span>
+          <div id="h_myzone"></div>
         </div>
       </div>
     </section>

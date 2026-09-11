@@ -5,7 +5,7 @@ import { el, todayISO, setSyncStatus } from './util.js';
 import { loadAll, ensureToday, setupRealtime, maybeOfferImport } from './data.js';
 import { renderToday } from './views/today.js';
 import { renderProgress, wireProgress, resizeCharts } from './views/progress.js';
-import { renderTrain } from './views/train.js';
+import { renderTrain, wireTrain } from './views/train.js';
 import { renderFuel } from './views/fuel.js';
 import { renderMore, wireMore } from './views/more.js';
 import { wireEntry, refreshEntryIfOpen, openEntry } from './views/entry.js';
@@ -86,6 +86,7 @@ async function boot(){
 wireProgress();
 wireMore();
 wireEntry();
+wireTrain();
 
 // The Today header pill starts a camp when none is running; while one is, it is
 // a read-only day counter.

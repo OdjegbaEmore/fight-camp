@@ -7,6 +7,15 @@ import {
   BACKFILL_LOG, BACKFILL_DEXA
 } from './config.js';
 
+function mapTemplate(r){
+  return {
+    id: r.id, name: r.name, subtitle: r.subtitle || '',
+    rounds: Array.isArray(r.rounds) ? r.rounds : [],
+    workSeconds: r.work_seconds, restSeconds: r.rest_seconds,
+    archived: !!r.archived
+  };
+}
+
 function mapEntry(r){
   return {
     weight: r.weight,
@@ -54,6 +63,18 @@ export async function loadAll(){
   state.workouts = wRes.error ? [] : (wRes.data || []).map(r => ({
     id: r.id, date: r.date, startTime: r.start_time, minutes: r.minutes,
     avgEffort: r.avg_effort, calories: r.calories, name: r.name || ''
+  }));
+
+  const tRes = await sb.from('workout_templates').select('*')
+    .eq('archived', false).order('name', { ascending: true });
+  state.templates = tRes.error ? [] : (tRes.data || []).map(mapTemplate);
+
+  const tsRes = await sb.from('template_sessions').select('*')
+    .order('started_at', { ascending: false }).limit(50);
+  state.templateSessions = tsRes.error ? [] : (tsRes.data || []).map(r => ({
+    id: r.id, templateId: r.template_id, templateName: r.template_name, date: r.date,
+    startedAt: r.started_at, endedAt: r.ended_at, roundsPlanned: r.rounds_planned,
+    roundsDone: r.rounds_done, completed: !!r.completed
   }));
 
   const cRes = await sb.from('camps').select('*').order('start_date', { ascending: true });
@@ -238,4 +259,56 @@ export async function resetCloud(){
   await loadAll();
   await ensureToday();
   hooks.render();
+}
+
+
+// ---------------------------------------------------------------------------
+// Train
+// ---------------------------------------------------------------------------
+export async function saveTemplate(t){
+  setSyncStatus('saving');
+  const row = {
+    name: t.name,
+    subtitle: t.subtitle || null,
+    rounds: t.rounds || [],
+    work_seconds: t.workSeconds,
+    rest_seconds: t.restSeconds,
+    archived: !!t.archived
+  };
+  const q = t.id
+    ? sb.from('workout_templates').update(row).eq('id', t.id).select().single()
+    : sb.from('workout_templates').insert(row).select().single();
+  const { data, error } = await q;
+  setSyncStatus(error ? 'error' : 'ok', error && error.message);
+  if (error) return null;
+  await loadAll();
+  hooks.render();
+  return data;
+}
+
+export async function deleteTemplate(id){
+  setSyncStatus('saving');
+  // Archive rather than delete: template_sessions references this row and the
+  // history should keep pointing somewhere real.
+  const { error } = await sb.from('workout_templates').update({ archived: true }).eq('id', id);
+  setSyncStatus(error ? 'error' : 'ok', error && error.message);
+  if (!error) { await loadAll(); hooks.render(); }
+}
+
+export async function logTemplateSession(s){
+  setSyncStatus('saving');
+  const { error } = await sb.from('template_sessions').insert({
+    template_id: s.templateId ?? null,
+    // Denormalised on purpose: the record has to survive its template being
+    // archived or renamed.
+    template_name: s.templateName,
+    date: s.date,
+    started_at: s.startedAt,
+    ended_at: s.endedAt,
+    rounds_planned: s.roundsPlanned,
+    rounds_done: s.roundsDone,
+    completed: !!s.completed
+  });
+  setSyncStatus(error ? 'error' : 'ok', error && error.message);
+  if (!error) { await loadAll(); hooks.render(); }
 }

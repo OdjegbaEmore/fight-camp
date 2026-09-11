@@ -11,6 +11,8 @@ export const state = {
   dexaScans: [],
   workouts: [],
   camps: [],
+  templates: [],
+  templateSessions: [],
   // The date the entry sheet is currently editing. Was the Log tab's date field.
   editDate: null
 };
