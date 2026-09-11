@@ -109,6 +109,54 @@ branch, verify against live data, merge when Today/Progress render correctly.
 
 ---
 
+## Camp mode — settled 2026-09-11
+
+**Live state:** `camp_start` 2026-07-13, `camp_end` **2026-09-18**, `rmr` **2067**,
+`base_cal` 1500. Camp is *active*, not over — it was extended past the original 2026-08-31.
+
+### Camps are first-class records
+
+New `camps` table: `id, name, start_date, end_date, target_weight, archived, results_json`.
+`settings.camp_start` / `camp_end` are migrated into the first row (name it
+"Summer Fight Camp 2026") and then retired. `campMode.active` is derived: a camp exists,
+is not archived, and today falls within its dates.
+
+Archive behaviour follows the handoff copy — a camp's logs and charts go read-only, while
+the diary and training history stay in the main timeline.
+
+### Baseline: most recent camp's start ⚠ reverses an earlier decision
+
+"Real total weight loss" counts from **the start of the most recent camp**, not from the
+first-ever weigh-in.
+
+`SESSION_NOTES.md` records the opposite ("Baseline is the first logged weigh-in (283.0,
+Jul 13), NOT the DEXA weight — the user chose this explicitly; don't 'fix' it back").
+**That instruction is superseded.** It was reaffirmed and then changed on 2026-09-11.
+
+Today the two agree by coincidence — `camp_start` (2026-07-13) is also the first weigh-in
+date, so both read 283.0 and the hero shows −25 lb. **They diverge at camp 2**, which will
+baseline against its own start weight and begin at 0.
+
+### Off-season: rolling 90-day window
+
+Outside camp, the weight chart shows the last 90 days rather than camp-scoped or all-time.
+Six weigh-ins have been logged since 2026-09-01 and currently render nowhere, because
+`weighedDatesBetween(campStart, campEnd)` scopes everything to the camp window.
+
+### RMR stays global — with one known consequence
+
+One `rmr` in settings, not per-camp. Chosen deliberately over per-camp storage.
+
+**Consequence to accept:** `burnFor()` applies the current RMR to every day ever logged, so
+any future DEXA scan retroactively changes the deficit history of past camps. This already
+happened once — 2138 → 2067 on this camp.
+
+**Mitigation that respects the choice:** snapshot each camp's *computed results* (total
+loss, average deficit, day count) into `camps.results_json` at archive time. RMR stays
+global and live; archived camp results stop moving. Recommended, not yet approved.
+
+---
+
 ## What needs the user, and when
 
 Everything else can be built unattended.
@@ -118,7 +166,6 @@ Everything else can be built unattended.
 | 1 | **Run SQL in the Supabase dashboard** for each new table | Start of phases 2, 3, 4, 5 | Schema changes need dashboard access |
 | 2 | **Approve the Phase 1 merge** | End of phase 1 | It re-skins and restructures an app in daily use |
 | 3 | **Supply or approve content** — 42 tips, 6 categories, the quote list, news sources | Phase 4 | Taste, not engineering. I can draft; you pick |
-| 4 | **Confirm camp-mode semantics** | Phase 1 | What "archive" does to old camps; whether off-season keeps a rolling weight chart |
 | 5 | **Decide the session-runner fallback** | Phase 2, after the prototype | Only if the locked-screen timer proves unreliable on your phone |
 
 ## Known-good state (don't re-derive)
