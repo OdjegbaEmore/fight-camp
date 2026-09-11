@@ -1,7 +1,7 @@
 // Minimal offline cache for the Fight Camp Tracker PWA.
 // Network-first (with cache fallback) for the HTML shell so code updates show up immediately;
 // cache-first (stale-while-revalidate) for static assets that rarely change.
-const CACHE_NAME = 'fight-camp-tracker-v4';
+const CACHE_NAME = 'fight-camp-tracker-v5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,10 +9,24 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',
+  // ES modules. The app is split across these with no build step, so every one
+  // has to be precached or the app cannot start offline.
+  './js/app.js',
+  './js/config.js',
+  './js/state.js',
+  './js/util.js',
+  './js/calc.js',
+  './js/data.js',
+  './js/views/today.js',
+  './js/views/train.js',
+  './js/views/fuel.js',
+  './js/views/progress.js',
+  './js/views/more.js',
+  './js/views/entry.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
-  // Direction 2a typography — if the font URL in index.html changes, change it here too.
-  'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap'
+  // Direction 3b typography — if the font URL in index.html changes, change it here too.
+  'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@400;500;600;700&display=swap'
 ];
 
 self.addEventListener('install', (event) => {
@@ -47,6 +61,27 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Our own ES modules: network-first, exactly like the HTML shell. All the app's
+  // logic used to live inside index.html and therefore updated on every load. Now
+  // that it is split across modules, serving them cache-first would pin the app to
+  // whatever code was cached when CACHE_NAME last changed — a silent stale-code
+  // bug, and the same class of failure that once served a stale pre-login shell.
+  const url = new URL(event.request.url);
+  if (url.origin === self.location.origin && url.pathname.endsWith('.js')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
           return response;
         })
         .catch(() => caches.match(event.request))
