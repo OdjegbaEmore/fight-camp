@@ -48,7 +48,7 @@ un-built template list) still get the handoff's "— —" treatment.
 
 ---
 
-## Phase 1 — Structural (no new features)
+## Phase 1 — Structural ✅ built 2026-09-11, on `phase-2-timer-prototype`, **not merged**
 
 Ends with the app behaving exactly as today, on a shape that can hold nineteen screens.
 
@@ -63,7 +63,7 @@ Ends with the app behaving exactly as today, on a shape that can hold nineteen s
 **Risk:** this touches every line of a working app the user depends on daily. Do it on a
 branch, verify against live data, merge when Today/Progress render correctly.
 
-## Phase 2 — Train
+## Phase 2 — Train ✅ built 2026-09-11, on `phase-2-timer-prototype`, **not merged**
 
 6. **Templates + Builder** — `workout_templates` table; rounds as ordered JSON. Drag to reorder.
 7. **Session runner.** ✅ **Feasibility settled 2026-09-11** — prototyped on a real iPhone
@@ -84,7 +84,7 @@ branch, verify against live data, merge when Today/Progress render correctly.
    screen staying on is load-bearing: the runner must warn visibly when the lock is lost.
 8. **Myzone history** — already-synced data, with the segmented 30 days / Camp / All.
 
-## Phase 3 — Fuel
+## Phase 3 — Fuel ✅ built 2026-09-12, on `phase-2-timer-prototype`, **not merged**
 
 9. `food_log` + `foods` tables; diary day view; Favourites and Search (USDA FoodData Central
    / Open Food Facts, both free).
@@ -95,7 +95,7 @@ branch, verify against live data, merge when Today/Progress render correctly.
 12. **Migrate `extra_cal`** — the diary becomes the intake source. Historical rows keep their
     typed value as one "legacy entry" line item so the deficit history stays intact.
 
-## Phase 4 — Progress + More
+## Phase 4 — Progress + More ⏳ not started (needs content authored — 42 tips, quotes, news sources)
 
 13. Weight & DEXA, Calories, Camp mode screens — mostly existing logic, re-skinned.
 14. **News** — RSS can't be fetched from the browser (CORS). The existing local scheduled task
@@ -103,7 +103,7 @@ branch, verify against live data, merge when Today/Progress render correctly.
 15. **Tips library** — `content` table, 42 tips / 6 categories. Also feeds the weekly focus
     card and the daily rotating quote.
 
-## Phase 5 — Archetype (read-only)
+## Phase 5 — Archetype (read-only) ⏳ **next up**
 
 16. **`reservations` table** parsed from Gmail — `danielle@archetypeboxing.com` sends
     `You reserved {class} at {time} on {date}!` and `Reservation Cancelled: {time} {class}`.
@@ -117,6 +117,32 @@ branch, verify against live data, merge when Today/Progress render correctly.
 18. Reservations screen, read-only. Deep link *out* to the gym's schedule is allowed
     (`.../schedule?_mt=%2Fschedule%2Fdaily%2F48541%3FactiveDate%3DYYYY-MM-DD%26locations%3D48717`)
     but there is **no Book button** — see cuts.
+
+---
+
+## Status — 2026-09-12
+
+**Branches.** `main` is the live four-tab app plus `prototype-timer.html`.
+`phase-2-timer-prototype` is the cumulative working branch holding Phases 1+2+3 — the
+name is historical, work continues there. All three branches are pushed.
+
+**Nothing is merged.** The app on the user's phone is unchanged.
+
+**Merge on/after 2026-09-18**, when camp ends. Held deliberately: the off-season path is
+half of what was rebuilt and cannot be exercised while camp mode masks it, and a full
+restructure should not land mid-cut.
+
+**Migrations run:** `supabase-phase1.sql`, `supabase-phase2.sql`, `supabase-phase3.sql` —
+all applied to the live database. All additive; the deployed app reads none of them.
+
+**Not yet verified:** the Supabase round-trip for Phases 2–3. Everything was checked
+against injected state with writes stubbed, so saving a template, logging food and seeding
+the cookbook have never actually hit the database. First thing to confirm after merging.
+
+**Written but deliberately not run:** `migrateExtraCal()` in `js/data.js`. It preserves
+each historical day's typed `extra_cal` as one diary line so the camp's deficit history
+survives the diary becoming the intake source. Run it with the user present — it touches
+85 days.
 
 ---
 
