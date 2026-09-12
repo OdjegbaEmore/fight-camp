@@ -246,6 +246,39 @@
   .run-count.rest { color:var(--paper); }
   [data-tpl] { cursor:pointer; }
 
+  /* ── fuel ── */
+  .meal-group { border-bottom:1px solid var(--line-soft); }
+  .meal-group:last-child { border-bottom:0; }
+  .btn-round {
+    width:30px; height:30px; padding:0; flex:0 0 auto; border-radius:99px;
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    font-size:13px; line-height:1; letter-spacing:0;
+  }
+  .btn-round:active, .btn-round.on { border-color:var(--accent); color:var(--accent); }
+  .food-row { cursor:pointer; }
+  .sel {
+    width:100%; background:transparent; border:1px solid var(--line); border-radius:6px;
+    color:var(--paper); font-family:var(--body); font-size:16px; padding:10px 12px;
+  }
+  .sel:focus { border-color:var(--accent); outline:none; }
+  .step-row { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px; line-height:1.55; }
+  .step-row:last-child { border-bottom:0; }
+  .step-n { font-family:var(--cond); font-size:13px; color:var(--accent); flex:0 0 auto; width:16px; }
+  .sheet-backdrop { position:absolute; inset:0; background:rgba(13,12,12,0.72); }
+  #addSheet, #recipeSheet { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; }
+  #toast {
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:calc(var(--tabbar) + env(safe-area-inset-bottom) + 14px);
+    z-index:120; display:flex; align-items:center; gap:12px;
+    background:#171514; border:1px solid var(--line); border-radius:6px;
+    padding:10px 14px; max-width:min(92vw, 400px);
+    font-size:13px; color:var(--paper);
+  }
+  #toast button {
+    background:transparent; border:0; padding:0; color:var(--accent);
+    font-family:var(--cond); font-size:13px; letter-spacing:0.07em; text-transform:uppercase;
+  }
+
   /* ── tables ── */
   .tbl-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-family: var(--cond); }
@@ -501,20 +534,66 @@
     <section class="view" id="view-fuel">
       <div class="screen-head">
         <h2 class="h2">Fuel</h2>
-        <span class="when">Diary</span>
+        <span class="when" id="fu_date">—</span>
       </div>
+
       <div class="stack">
-        <div class="card-accent">
-          <span class="tick-l"></span><span class="tick-r"></span>
-          <div class="lab">Eaten today</div>
-          <div style="display:flex; align-items:baseline; gap:8px;">
-            <span class="hero-v" id="fu_intake">—</span>
-            <span style="font-size:14px; color:var(--muted);" id="fu_base">—</span>
+        <div class="seg" id="fu_seg">
+          <button type="button" data-pane="diary" class="on">Diary</button>
+          <button type="button" data-pane="cookbook">Cookbook</button>
+          <button type="button" data-pane="plans">Plans</button>
+        </div>
+
+        <!-- diary -->
+        <div id="fu_diary" class="stack-tight">
+          <div class="card-accent">
+            <span class="tick-l"></span><span class="tick-r"></span>
+            <div class="lab">Eaten today</div>
+            <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+              <span class="hero-v" id="fu_intake">—</span>
+              <span style="font-size:14px; color:var(--muted);" id="fu_target">—</span>
+            </div>
+            <div class="bar-track" style="margin:8px 0 6px;"><div class="bar-fill" id="fu_bar" style="width:0%"></div></div>
+            <div class="row-between" style="font-size:11px; color:var(--muted);">
+              <span id="fu_macros">—</span><span id="fu_left"></span>
+            </div>
+          </div>
+
+          <div class="card" id="fu_planbar" hidden>
+            <div class="row-between">
+              <div style="min-width:0;">
+                <div class="listrow-t" style="font-size:15px;" id="fu_planname">—</div>
+                <div class="listrow-s" id="fu_planhint">—</div>
+              </div>
+              <div style="flex:0 0 auto;">
+                <button class="pill pill-line" id="fu_planfill" type="button">Fill day</button>
+                <button class="pill pill-line" id="fu_planclear" type="button" hidden>Clear plan</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="fu_meals"></div>
+
+          <div style="display:flex; gap:8px;">
+            <button class="btn-ghost" id="fu_copyBtn" type="button" style="flex:1;">Copy yesterday</button>
+            <button class="btn-solid" id="fu_addBtn" type="button" style="flex:1;">Add food</button>
           </div>
         </div>
-        <div class="card">
-          <div class="lab">Food diary · cookbook · meal plans</div>
-          <div class="empty-note">The diary arrives in Phase 3 and becomes the source for daily intake. Until then this figure comes from the plan base plus any extra calories logged on the entry sheet.</div>
+
+        <!-- cookbook -->
+        <div id="fu_cookbook" class="stack-tight" hidden>
+          <div class="row-between">
+            <span class="lab">Recipes</span>
+            <span class="lab" id="cb_count">— —</span>
+          </div>
+          <button class="btn-dashed" id="cb_seed" type="button" hidden>Import from my meal plans</button>
+          <div id="cb_list"></div>
+        </div>
+
+        <!-- plans -->
+        <div id="fu_plans" class="stack-tight" hidden>
+          <span class="lab">Meal plans</span>
+          <div id="pl_list"></div>
         </div>
       </div>
     </section>
@@ -636,6 +715,81 @@
       <a href="#/progress" data-tab="progress">Progress</a>
       <a href="#/more"     data-tab="more">More</a>
     </nav>
+
+    <!-- ══════════ ADD FOOD SHEET ══════════ -->
+    <div id="addSheet" hidden>
+      <div id="add_backdrop" class="sheet-backdrop"></div>
+      <div class="sheet">
+        <div class="screen-head">
+          <h2 class="h2">Add to <span id="add_meal">—</span></h2>
+          <button class="btn-x" id="add_close" type="button" aria-label="Close">✕</button>
+        </div>
+
+        <div id="add_browse" class="stack-tight">
+          <div class="seg" id="add_seg">
+            <button type="button" data-tab="favourites" class="on">Favourites</button>
+            <button type="button" data-tab="search">Search</button>
+          </div>
+
+          <div id="add_fav">
+            <div id="fav_list"></div>
+          </div>
+
+          <div id="add_search" hidden>
+            <div class="field"><input type="search" id="add_q" placeholder="Search foods…" autocomplete="off"></div>
+            <div class="note-sm" id="search_notes" hidden></div>
+            <div class="note-sm" id="search_status"></div>
+            <div id="search_list"></div>
+          </div>
+        </div>
+
+        <div id="add_portion" class="stack-tight" hidden>
+          <button class="btn-quiet" id="p_back" type="button" style="align-self:flex-start;">‹ Back</button>
+          <div class="listrow-t" id="p_name">—</div>
+          <div class="listrow-s" id="p_sub">—</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div class="field"><label for="p_qty">Amount</label><input type="number" id="p_qty" inputmode="decimal" step="0.1" value="1"></div>
+            <div class="field"><label for="p_unit">Unit</label>
+              <select id="p_unit" class="sel"><option value="serving">serving</option><option value="g">grams</option></select>
+            </div>
+          </div>
+          <div class="note-sm" id="p_servinghint">—</div>
+          <div class="card-accent" style="text-align:center;">
+            <span class="tick-l"></span><span class="tick-r"></span>
+            <div class="lab">This portion</div>
+            <div class="hero-v" id="p_kcal" style="font-size:44px;">—</div>
+            <div class="note-sm" id="p_macros">—</div>
+          </div>
+          <button class="btn-solid" id="p_add" type="button">Add to diary</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ RECIPE SHEET ══════════ -->
+    <div id="recipeSheet" hidden>
+      <div id="r_backdrop" class="sheet-backdrop"></div>
+      <div class="sheet">
+        <div class="screen-head">
+          <h2 class="h2" id="r_name">—</h2>
+          <button class="btn-x" id="r_close" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="stack-tight">
+          <div class="lab" id="r_macros">—</div>
+          <div class="note-sm" id="r_desc" hidden>—</div>
+          <span class="lab" style="margin-top:6px;">Ingredients</span>
+          <div id="r_ing"></div>
+          <span class="lab" id="r_steps_lab" style="margin-top:6px;">Method</span>
+          <div id="r_steps"></div>
+          <button class="btn-solid" id="r_add" type="button">Add to diary</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- toast -->
+    <div id="toast" hidden>
+      <span id="toast_msg">—</span>
+      <button id="toast_action" type="button" hidden>Undo</button>
+    </div>
 
     <!-- ══════════ ENTRY SHEET ══════════ -->
     <div id="entrySheet" hidden>

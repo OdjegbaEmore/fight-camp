@@ -18,6 +18,19 @@ export const OFFSEASON_WINDOW_DAYS = 90;
 
 export const WEIGH_STEP = 0.5;
 
+// USDA FoodData Central. DEMO_KEY works but is capped at 10 requests/hour —
+// enough to develop against, not to use. A free key removes the cap:
+// https://fdc.nal.usda.gov/api-key-signup.html
+export const USDA_API_KEY = 'DEMO_KEY';
+
+// Meals in the order the diary shows them.
+export const MEALS = [
+  { id:'breakfast', label:'Breakfast' },
+  { id:'lunch',     label:'Lunch' },
+  { id:'dinner',    label:'Dinner' },
+  { id:'extra',     label:'Extra' }
+];
+
 // Direction 3b palette, mirrored for Chart.js which can't read CSS variables.
 export const C = {
   accent: '#ef7059',

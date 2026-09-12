@@ -1,7 +1,7 @@
 // Minimal offline cache for the Fight Camp Tracker PWA.
 // Network-first (with cache fallback) for the HTML shell so code updates show up immediately;
 // cache-first (stale-while-revalidate) for static assets that rarely change.
-const CACHE_NAME = 'fight-camp-tracker-v6';
+const CACHE_NAME = 'fight-camp-tracker-v7';
 const APP_SHELL = [
   './',
   './index.html',
@@ -18,6 +18,8 @@ const APP_SHELL = [
   './js/calc.js',
   './js/data.js',
   './js/runner.js',
+  './js/foodsearch.js',
+  './js/seed-fuel.js',
   './js/views/today.js',
   './js/views/train.js',
   './js/views/fuel.js',

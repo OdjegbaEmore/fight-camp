@@ -13,6 +13,11 @@ export const state = {
   camps: [],
   templates: [],
   templateSessions: [],
+  foods: [],
+  recipes: [],
+  plans: [],
+  diary: [],
+  diaryDate: null,
   // The date the entry sheet is currently editing. Was the Log tab's date field.
   editDate: null
 };

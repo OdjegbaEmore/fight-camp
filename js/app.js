@@ -2,11 +2,11 @@
 
 import { sb, state, hooks } from './state.js';
 import { el, todayISO, setSyncStatus } from './util.js';
-import { loadAll, ensureToday, setupRealtime, maybeOfferImport } from './data.js';
+import { loadAll, ensureToday, setupRealtime, maybeOfferImport, loadDiary } from './data.js';
 import { renderToday } from './views/today.js';
 import { renderProgress, wireProgress, resizeCharts } from './views/progress.js';
 import { renderTrain, wireTrain } from './views/train.js';
-import { renderFuel } from './views/fuel.js';
+import { renderFuel, wireFuel, wireCookbook } from './views/fuel.js';
 import { renderMore, wireMore } from './views/more.js';
 import { wireEntry, refreshEntryIfOpen, openEntry } from './views/entry.js';
 
@@ -76,6 +76,7 @@ async function boot(){
   if (!loaded) { booted = false; applyRoute(); render(); return; }
   await maybeOfferImport();
   await ensureToday();
+  await loadDiary(todayISO());
   state.editDate = todayISO();
   applyRoute();
   render();
@@ -87,6 +88,8 @@ wireProgress();
 wireMore();
 wireEntry();
 wireTrain();
+wireFuel();
+wireCookbook();
 
 // The Today header pill starts a camp when none is running; while one is, it is
 // a read-only day counter.
