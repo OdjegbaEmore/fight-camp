@@ -40,3 +40,32 @@ this because the tab bar is plain `href="#/…"` anchors that need no JavaScript
 `flatten.py` has a hardcoded `ORDER` list of modules, in dependency order. **Add new
 modules to it** or they are silently missing from the bundle — which is how Phase 3's
 first preview shipped with no recipes, no templates and no runner.
+
+`build-preview.py` seeds reservations from `/tmp/reservations.json` when it exists —
+produce it with `archetype_sync.py --dump-reservations /tmp/reservations.json` (below).
+
+---
+
+# archetype_sync.py — Archetype reservations sync
+
+Not a preview tool: this one writes to the live database. It turns the gym's emails into
+`reservations` rows and names Myzone sessions from them. Run by the local scheduled task
+`archetype-reservation-sync`, which does the Gmail search and hands the messages over:
+
+```bash
+python3 tools/archetype_sync.py --emails emails.json --key-file PATH            # dry run
+python3 tools/archetype_sync.py --emails emails.json --key-file PATH --apply    # writes
+```
+
+- **Dry run by default.** Prints every name it would write; `--apply` is required to write.
+- **`--key-file`** is any local file holding the `service_role` JWT. Point it at the Myzone
+  task's `SKILL.md`, which already holds the key — no third copy of the secret. Never
+  printed, never in the repo.
+- **Refuses to write** until `supabase-phase5.sql` has been run (checks for the table and
+  for `workouts.name_auto`).
+- **`--since YYYY-MM-DD`** widens the naming window for a backfill (default: 21 days).
+- Python 3.9 standard library only — this Mac ships no Node.
+
+The rules (newest email wins; match on overlap; `name_auto` ownership) are documented at
+the top of the script and in `ROADMAP.md` Phase 5. Real email content is not committed
+anywhere — the repo is public — so fixtures for checking it live outside the repo.

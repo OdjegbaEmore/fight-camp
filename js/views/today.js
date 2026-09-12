@@ -7,6 +7,7 @@
 import { state } from '../state.js';
 import { el, fmt, shortDate, longDate, shortTime, pad3, escapeAttr, todayISO } from '../util.js';
 import { saveWorkoutName } from '../data.js';
+import { upcomingReservations, displayClass, scheduleUrl, localNow } from '../archetype.js';
 import {
   campMode, intakeFor, burnFor, netFor, sortedDates,
   latestWeight, baselineWeight
@@ -156,11 +157,35 @@ function renderWeeklyFocus(){
   el('t_focus_body').textContent = 'Weekly focus arrives with the tips library.';
 }
 
+// The soonest booked class, from the gym's confirmation emails. Links out to the
+// gym's schedule — there is no Book button, booking lives in the gym's app.
 function renderNextSession(){
-  // Reservations are parsed from the gym's confirmation emails in Phase 5.
-  el('t_next_title').textContent = 'Not connected';
-  el('t_next_meta').textContent = 'Class reservations arrive in a later phase.';
-  el('t_next_right').textContent = 'Gym schedule';
+  const now = localNow();
+  const title = el('t_next_title'), meta = el('t_next_meta');
+  const link = (date, label) =>
+    `<a class="lab" href="${scheduleUrl(date)}" target="_blank" rel="noopener"
+        style="display:inline-block; padding:12px 0 12px 12px; color:var(--muted); text-decoration:none;">${label} ↗</a>`;
+
+  if (state.reservations === null) {
+    title.textContent = '— —';
+    meta.textContent = 'Reservations could not be loaded.';
+    el('t_next_right').innerHTML = link(now.date, 'Schedule');
+    return;
+  }
+
+  const next = upcomingReservations(state.reservations, now)[0];
+  if (!next) {
+    title.textContent = 'Nothing booked';
+    meta.textContent = 'Book in the Archetype app and it appears here.';
+    el('t_next_right').innerHTML = link(now.date, 'Schedule');
+    return;
+  }
+
+  const tomorrow = localNow(new Date(Date.now() + 86400000)).date;
+  const day = next.date === now.date ? 'Today' : next.date === tomorrow ? 'Tomorrow' : longDate(next.date);
+  title.textContent = displayClass(next.className);
+  meta.textContent = `${day} · ${shortTime(next.startTime)}${next.instructors ? ' · ' + next.instructors : ''}`;
+  el('t_next_right').innerHTML = link(next.date, 'Schedule');
 }
 
 // Per-session breakdown, straight from Myzone. The design's category bars

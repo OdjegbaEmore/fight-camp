@@ -1,14 +1,15 @@
-// Train — templates, builder, session runner, Myzone history.
+// Train — templates, builder, session runner, history, class reservations.
 
 import { state, hooks } from '../state.js';
-import { el, fmt, shortTime, shortDate, escapeAttr, todayISO } from '../util.js';
+import { el, fmt, shortTime, shortDate, longDate, escapeAttr, todayISO } from '../util.js';
 import { saveTemplate, deleteTemplate, logTemplateSession } from '../data.js';
+import { upcomingReservations, pastReservations, displayClass, scheduleUrl, localNow } from '../archetype.js';
 import {
   runner, startSession, pauseToggle, isPaused, skipRound, endSession,
   positionAt, expandRounds, workCount, audioState
 } from '../runner.js';
 
-let pane = 'templates';        // templates | builder | runner | history
+let pane = 'templates';        // templates | builder | runner | history | classes
 let draft = null;              // template being edited
 
 function mmss(sec){
@@ -26,12 +27,13 @@ export function renderTrain(){
   el('tr_seg').querySelectorAll('button').forEach(b =>
     b.classList.toggle('on', b.dataset.pane === pane));
 
-  ['templates','builder','runner','history'].forEach(p =>
+  ['templates','builder','runner','history','classes'].forEach(p =>
     el('tr_' + p).hidden = (p !== pane));
 
   if (pane === 'templates') renderTemplates();
   else if (pane === 'builder') renderBuilder();
   else if (pane === 'runner') renderRunner();
+  else if (pane === 'classes') renderClasses();
   else renderHistory();
 }
 
@@ -269,6 +271,41 @@ function renderHistory(){
           <div class="listrow-v">${fmt(x.calories)}</div>
         </div>`).join('')
     : `<div class="empty-note">No Myzone sessions synced.</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Classes — read-only, from Archetype's confirmation emails
+// ---------------------------------------------------------------------------
+function renderClasses(){
+  const now = localNow();
+  el('cl_schedule').href = scheduleUrl(now.date);
+
+  if (state.reservations === null) {
+    el('cl_count').textContent = '— —';
+    el('cl_upcoming').innerHTML = `<div class="empty-note">Reservations could not be loaded.</div>`;
+    el('cl_recent').innerHTML = '';
+    return;
+  }
+
+  const row = (r, right) => `
+    <div class="listrow">
+      <div>
+        <div class="listrow-t">${escapeAttr(displayClass(r.className))}</div>
+        <div class="listrow-s">${longDate(r.date)} · ${shortTime(r.startTime)}${r.instructors ? ' · ' + escapeAttr(r.instructors) : ''}</div>
+      </div>
+      <div class="listrow-v" style="font-size:13px; color:var(--muted);">${right}</div>
+    </div>`;
+
+  const up = upcomingReservations(state.reservations, now);
+  el('cl_count').textContent = up.length ? `${up.length} upcoming` : '— —';
+  el('cl_upcoming').innerHTML = up.length
+    ? up.map(r => row(r, r.date === now.date ? 'Today' : '')).join('')
+    : `<div class="empty-note">Nothing booked. Book in the Archetype app and it shows up here after the next sync.</div>`;
+
+  const past = pastReservations(state.reservations, now).slice(0, 20);
+  el('cl_recent').innerHTML = past.length
+    ? past.map(r => row(r, r.status === 'cancelled' ? 'Cancelled' : r.noShow ? 'No-show' : '')).join('')
+    : `<div class="empty-note">No past classes in the last two months.</div>`;
 }
 
 export function wireTrain(){

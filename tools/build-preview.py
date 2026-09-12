@@ -8,6 +8,9 @@ flat = pathlib.Path('/tmp/fc-flat.js').read_text()
 
 ENTRIES = json.loads(pathlib.Path('/tmp/entries.json').read_text())
 WORKOUTS = json.loads(pathlib.Path('/tmp/workouts.json').read_text())
+# Resolved reservations, from `archetype_sync.py --dump-reservations`. Optional.
+_res = pathlib.Path('/tmp/reservations.json')
+RESERVATIONS = json.loads(_res.read_text()) if _res.exists() else []
 
 # --- strip things the preview must not carry ---
 html = html.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>\n', '')
@@ -101,6 +104,10 @@ __FLAT__
   state.workouts = W.map(([id,date,st,min,eff,cal,name]) => ({
     id, date, startTime:st, minutes:min, avgEffort:eff, calories:cal, name: name || ''
   }));
+  state.reservations = __RESERVATIONS__.filter(r => r.status).map((r,i) => ({
+    id:i+1, date:r.date, startTime:r.start_time, className:r.class_name,
+    instructors:r.instructors || '', status:r.status, noShow:!!r.no_show
+  }));
   state.camps = [{ id:1, name:'Summer Fight Camp 2026', startDate:'2026-07-13',
                    endDate:'2026-09-18', targetWeight:null, archived:false, results:null }];
 
@@ -159,6 +166,7 @@ __FLAT__
 HARNESS = HARNESS.replace('__FLAT__', flat)
 HARNESS = HARNESS.replace('__ENTRIES__', json.dumps(ENTRIES, separators=(',',':')))
 HARNESS = HARNESS.replace('__WORKOUTS__', json.dumps(WORKOUTS, separators=(',',':')))
+HARNESS = HARNESS.replace('__RESERVATIONS__', json.dumps(RESERVATIONS, separators=(',',':')))
 
 BAR = """
 <div id="previewBar">

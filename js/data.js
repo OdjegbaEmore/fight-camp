@@ -1,7 +1,7 @@
 // All Supabase reads and writes.
 
 import { sb, state, hooks } from './state.js';
-import { setSyncStatus, todayISO } from './util.js';
+import { setSyncStatus, todayISO, isoMinusDays } from './util.js';
 import {
   DEFAULT_SETTINGS, LEGACY_STORAGE_KEY, IMPORT_DISMISSED_KEY,
   BACKFILL_LOG, BACKFILL_DEXA
@@ -72,6 +72,15 @@ export async function loadAll(){
   state.workouts = wRes.error ? [] : (wRes.data || []).map(r => ({
     id: r.id, date: r.date, startTime: r.start_time, minutes: r.minutes,
     avgEffort: r.avg_effort, calories: r.calories, name: r.name || ''
+  }));
+
+  // Two months back is plenty for the Classes pane; the future is all of it.
+  const resRes = await sb.from('reservations').select('*')
+    .gte('date', isoMinusDays(todayISO(), 60))
+    .order('date', { ascending: true }).order('start_time', { ascending: true });
+  state.reservations = resRes.error ? null : (resRes.data || []).map(r => ({
+    id: r.id, date: r.date, startTime: r.start_time, className: r.class_name,
+    instructors: r.instructors || '', status: r.status, noShow: !!r.no_show
   }));
 
   const tRes = await sb.from('workout_templates').select('*')
@@ -212,7 +221,7 @@ export function setupRealtime(){
   if (realtimeChannel) return;
   const redraw = () => loadAll().then(hooks.render);
   realtimeChannel = sb.channel('fightcamp-sync');
-  ['entries','dexa_scans','settings','workouts','camps'].forEach(table => {
+  ['entries','dexa_scans','settings','workouts','camps','reservations'].forEach(table => {
     realtimeChannel.on('postgres_changes', { event:'*', schema:'public', table }, redraw);
   });
   realtimeChannel.subscribe();

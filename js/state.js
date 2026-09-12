@@ -10,6 +10,9 @@ export const state = {
   entries: {},
   dexaScans: [],
   workouts: [],
+  // Read-only, written by the Archetype sync. null = could not be loaded (the
+  // Phase 5 migration not run), which the screens say rather than "nothing booked".
+  reservations: [],
   camps: [],
   templates: [],
   templateSessions: [],

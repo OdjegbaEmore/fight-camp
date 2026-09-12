@@ -447,6 +447,7 @@
           <button type="button" data-pane="templates" class="on">Templates</button>
           <button type="button" data-pane="runner">Runner</button>
           <button type="button" data-pane="history">History</button>
+          <button type="button" data-pane="classes">Classes</button>
         </div>
 
         <!-- templates -->
@@ -526,6 +527,20 @@
           <div id="h_sessions"></div>
           <span class="lab" style="margin-top:6px;">Myzone sessions</span>
           <div id="h_myzone"></div>
+        </div>
+
+        <!-- classes: read-only, from Archetype's confirmation emails. No Book button — cut. -->
+        <div id="tr_classes" class="stack-tight" hidden>
+          <div class="row-between">
+            <span class="lab">Booked</span>
+            <span class="lab" id="cl_count">— —</span>
+          </div>
+          <div id="cl_upcoming"></div>
+          <span class="lab" style="margin-top:6px;">Past classes</span>
+          <div id="cl_recent"></div>
+          <a class="btn-ghost" id="cl_schedule" href="#" target="_blank" rel="noopener"
+             style="display:block; text-align:center; text-decoration:none;">Open the gym schedule ↗</a>
+          <div class="note-sm">Read from Archetype's confirmation emails. Book and cancel in the gym's app.</div>
         </div>
       </div>
     </section>

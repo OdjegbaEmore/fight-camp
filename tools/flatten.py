@@ -8,7 +8,7 @@
 import re, pathlib, collections, sys
 
 base = pathlib.Path('.')
-ORDER = ['js/config.js','js/util.js','js/state.js','js/calc.js','js/foodsearch.js',
+ORDER = ['js/config.js','js/util.js','js/state.js','js/calc.js','js/archetype.js','js/foodsearch.js',
          'js/seed-fuel.js','js/data.js','js/runner.js','js/views/entry.js',
          'js/views/today.js','js/views/train.js','js/views/fuel.js',
          'js/views/progress.js','js/views/more.js','js/app.js']

@@ -103,27 +103,62 @@ branch, verify against live data, merge when Today/Progress render correctly.
 15. **Tips library** — `content` table, 42 tips / 6 categories. Also feeds the weekly focus
     card and the daily rotating quote.
 
-## Phase 5 — Archetype (read-only) ⏳ **next up**
+## Phase 5 — Archetype (read-only) ✅ built, migrated, backfilled and syncing 2026-09-12 · UI **not merged**
 
-16. **`reservations` table** parsed from Gmail — `danielle@archetypeboxing.com` sends
-    `You reserved {class} at {time} on {date}!` and `Reservation Cancelled: {time} {class}`.
-    Cancellation supersedes the booking it matches on (date, time).
-17. **Auto-fill `workouts.name`** — match a Myzone session to a reservation on date + *nearest*
-    start time. All synced sessions currently have `name: null`, so this is pure gain.
-    - Fuzzy window: observed start times run up to ~25 min off the scheduled class.
-    - Resolve to the **nearest** class — back-to-back 5:30/6:30 bookings are common.
-    - **The Myzone sync itself must still never write `name`.** Separate reconciliation step,
-      and it must not overwrite a user-typed label.
-18. Reservations screen, read-only. Deep link *out* to the gym's schedule is allowed
-    (`.../schedule?_mt=%2Fschedule%2Fdaily%2F48541%3FactiveDate%3DYYYY-MM-DD%26locations%3D48717`)
-    but there is **no Book button** — see cuts.
+**Live now, ahead of the merge:** `supabase-phase5.sql` is run; 106 reservations and 46
+session names were backfilled (13 Jul → 12 Sep); the `archetype-reservation-sync` local
+scheduled task runs at 12:30 and 21:30. The session names already show in the **deployed**
+app's Today breakdown, which reads `workouts.name`. The Classes pane and Next session card
+wait for the merge like everything else. To undo the names:
+`update workouts set name = null, name_auto = null where name = name_auto;`
+
+Checked against every Archetype email and every Myzone session since camp start (139
+emails, 76 sessions). Two of the original assumptions did not survive the real data —
+both are marked ⚠ below, and the code is the authority on both.
+
+16. **`reservations` table** (`supabase-phase5.sql`), one row per class holding its
+    *current* state. `danielle@archetypeboxing.com` sends:
+    - `You reserved {class} at {time} on {M/D/YYYY}!` — body adds the instructors.
+    - `Reservation Cancelled: {time} {class}` — ⚠ **the subject has no date**; the body does
+      (`Your reservation for {class} on {M/D/YYYY} at {time} has been cancelled`).
+    - `Receipt` with `Sales|Refund Receipt … No Show Fee {class} - {Mon D, YYYY}, {time}` →
+      `no_show`, reversed by the refund.
+
+    ⚠ **The newest email wins — a cancellation does not simply supersede its booking.**
+    Classes get rebooked, sometimes repeatedly: Saturday Boxing on 5 Sep went booked,
+    cancelled, booked, cancelled; 3 Sep's 7:15 was cancelled and rebooked 49 seconds later.
+17. **Auto-fill `workouts.name`.**
+    - ⚠ **Match on overlap, not nearest start time.** A session is credited with every booked,
+      non-no-show class it overlaps by ≥ 20 min (classes run 60). Nearest-start fails three
+      ways in the data: the strap goes on up to 35 min early (20 Aug); one session often
+      spans back-to-back classes (9 Sep, 06:29 for 114 min = the 6:30 *and* the 7:30); and
+      28 Aug's 17:48 session is nearest the 5:30 the gym charged a no-show for, but runs to
+      18:55 — it was the 6:30.
+    - Names read `Archetype Boxing ×2`, `Saturday Boxing + Boxing Ring Class`; the gym's
+      `(Coach Approval Required)` suffix is dropped for display only.
+    - **Ownership via `workouts.name_auto`.** The step writes `name` only while it is NULL or
+      still equals `name_auto` (what the step last wrote). A label typed in any build — the
+      live app included, which knows nothing of `name_auto` — differs and is never touched.
+      A cleared name is `''`, not NULL, so it stays cleared. Writes are guarded on the value
+      read, so a retype between read and write matches zero rows.
+    - **The Myzone sync still never writes `name` or `name_auto`.** Unchanged.
+    - Dry run: 46 of 76 sessions named, all 11 user-typed names left alone, no false matches
+      found in the 22 unmatched (all are unbooked bike rides and Sunday sessions).
+18. **Classes pane** on Train (a fourth segment), plus the **Next session** card on Today.
+    Read-only; deep link *out* to the gym's schedule, **no Book button** — see cuts.
+
+**Where the logic lives.** `tools/archetype_sync.py` — Python 3.9 stdlib, because this Mac
+has no Node. A scheduled task does the Gmail search (only it has the connector), writes the
+messages to JSON and runs the script; the script parses, resolves, upserts and names. The
+app reads rows only, so `js/archetype.js` is display logic and nothing is implemented twice.
+This is also the shape the parked GitHub Actions port of the Myzone sync wants.
 
 ---
 
 ## Status — 2026-09-12
 
 **Branches.** `main` is the live four-tab app plus `prototype-timer.html`.
-`phase-2-timer-prototype` is the cumulative working branch holding Phases 1+2+3 — the
+`phase-2-timer-prototype` is the cumulative working branch holding Phases 1+2+3+5 — the
 name is historical, work continues there. All three branches are pushed.
 
 **Nothing is merged.** The app on the user's phone is unchanged.
@@ -132,8 +167,9 @@ name is historical, work continues there. All three branches are pushed.
 half of what was rebuilt and cannot be exercised while camp mode masks it, and a full
 restructure should not land mid-cut.
 
-**Migrations run:** `supabase-phase1.sql`, `supabase-phase2.sql`, `supabase-phase3.sql` —
-all applied to the live database. All additive; the deployed app reads none of them.
+**Migrations run:** `supabase-phase1.sql`, `supabase-phase2.sql`, `supabase-phase3.sql`,
+`supabase-phase5.sql` — all applied to the live database. All additive; the deployed app
+reads none of the new tables (it does read `workouts.name`, which Phase 5 now fills).
 
 **Not yet verified:** the Supabase round-trip for Phases 2–3. Everything was checked
 against injected state with writes stubbed, so saving a template, logging food and seeding
