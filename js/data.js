@@ -129,7 +129,8 @@ export async function loadAll(){
   }));
 
   const nRes = await sb.from('news').select('*').eq('active', true)
-    .order('published_at', { ascending: false }).order('id', { ascending: false }).limit(80);
+    // Newest day first; within a day, the order the news task listed them (its lead first).
+    .order('published_at', { ascending: false }).order('id', { ascending: true }).limit(80);
   state.news = nRes.error ? null : (nRes.data || []).map(r => ({
     id:r.id, url:r.url, title:r.title, source:r.source, category:r.category,
     summary:r.summary, why:r.why || '', publishedAt:r.published_at

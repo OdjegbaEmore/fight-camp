@@ -110,6 +110,15 @@ Tips pane (5th segment, fits at 375 px); More → News feed (chips, lead story, 
 article sheet (own-words summary + link out). `sw.js` v13. Both scheduled tasks, their
 `prepare.sh`/`publish.sh` wrappers and `~/.claude/settings.json` rules + write hook exist.
 
+**Migrated and first runs done 2026-09-13.** User ran `supabase-phase4.sql` and added the write hook.
+Both tasks run once via "Run now": no permission prompts, ~2.5 min each. News published 5 stories;
+weekly published 19 rows (week 38 focus "Build on the rebound", 12 tips, 6 quotes — spot-checked on
+Wikiquote's sourced sections). A fact check found one news row (USA Boxing events listing) whose
+summary carried details the page doesn't state and whose date was invented — hidden
+(`active=false`), and the news prompt now requires dated articles and every fact from the linked
+page. News order is newest `published_at`, then the task's own order within a day.
+**Not merged** — waiting on the user's look at the branch.
+
 **Guards in code, not prose:** freshness gate on date-stamped batch *and* context files;
 news needs a real URL, a date within 10 days, a known category, no quoted run over 12 words;
 a tip stating a measured figure needs `source_url`; every quote needs attribution +
