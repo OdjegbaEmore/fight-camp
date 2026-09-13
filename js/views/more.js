@@ -4,6 +4,7 @@ import { sb, state, hooks } from '../state.js';
 import { el, fmt } from '../util.js';
 import { saveSettings, runBackfill, resetCloud } from '../data.js';
 import { intakeFor, burnFor, sortedDates } from '../calc.js';
+import { gymShortcutOn, setGymShortcut, SHORTCUT_NAME } from '../archetype.js';
 
 export function renderMore(){
   el('s_rmr').value = state.settings.rmr;
@@ -24,9 +25,24 @@ export function renderMore(){
   el('conn_gym').classList.toggle('on', !!(classes && classes.length));
   el('conn_news').textContent = 'Not connected';
   el('conn_news').classList.remove('on');
+
+  // Gym app: per-device switch for opening Archetype through the iOS Shortcut.
+  const on = gymShortcutOn();
+  const t = el('gs_toggle');
+  t.textContent = on ? 'On' : 'Off';
+  t.className = 'pill ' + (on ? 'pill-solid' : 'pill-line');
+  t.setAttribute('aria-pressed', String(on));
+  el('gs_state').textContent = on
+    ? `This device runs the “${SHORTCUT_NAME}” Shortcut`
+    : 'Off on this device — Open app goes to the App Store page';
 }
 
 export function wireMore(){
+  el('gs_toggle').addEventListener('click', () => {
+    setGymShortcut(!gymShortcutOn());
+    hooks.render();
+  });
+
   el('saveSettingsBtn').addEventListener('click', async function(){
     await saveSettings({
       rmr: Number(el('s_rmr').value) || state.settings.rmr,

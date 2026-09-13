@@ -165,7 +165,8 @@ function renderNextSession(){
   const title = el('t_next_title'), meta = el('t_next_meta');
   const link = date => {
     const g = gymLink(date);
-    return `<a class="lab" href="${g.url}" target="_blank" rel="noopener"
+    // The shortcuts:// link must open in place; a new tab would leave a blank one behind.
+    return `<a class="lab" href="${g.url}"${g.external ? ' target="_blank" rel="noopener"' : ''}
         style="display:inline-block; padding:12px 0 12px 12px; color:var(--muted); text-decoration:none;">${g.label} ↗</a>`;
   };
 

@@ -284,6 +284,8 @@ function renderClasses(){
   // The gym's app on a phone (via its store page), its web schedule on desktop.
   const g = gymLink(now.date);
   el('cl_schedule').href = g.url;
+  if (g.external) { el('cl_schedule').target = '_blank'; el('cl_schedule').rel = 'noopener'; }
+  else { el('cl_schedule').removeAttribute('target'); el('cl_schedule').removeAttribute('rel'); }
   el('cl_schedule').textContent = g.kind === 'web' ? 'Open the gym schedule ↗' : 'Open the Archetype app ↗';
 
   if (state.reservations === null) {

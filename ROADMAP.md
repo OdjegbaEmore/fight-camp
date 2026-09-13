@@ -157,6 +157,10 @@ both are marked ⚠ below, and the code is the authority on both.
     universal-link file on archetypeboxing.com or the Mariana Tek domains, no published URL
     scheme, and four candidate schemes failed on the user's iPhone. See `gymLink()` in
     `js/archetype.js`.
+    **Then, same day:** on an opted-in iPhone the link runs the iOS Shortcut "Open Archetype"
+    (Open App → Archetype Boxing Club) via `shortcuts://run-shortcut`, which opens the app
+    directly — verified on the user's phone. Opt-in per device under More → Gym app, because
+    the Shortcut must exist; without it the store page is still the fallback.
 
 **Where the logic lives.** `tools/archetype_sync.py` — Python 3.9 stdlib, because this Mac
 has no Node. A scheduled task does the Gmail search (only it has the connector), writes the
