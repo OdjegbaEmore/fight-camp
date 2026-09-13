@@ -22,9 +22,12 @@ The model never writes to Supabase itself. The rules are code:
   * News: every story has a real http(s) URL, a published date within 10 days, a
     known category, and a summary in the routine's own words (a quoted run of more
     than 12 words is refused as copied text). Upsert ignores URLs already stored.
-  * Tips: a stated measurement (g, kg, %, kcal, ...) needs a source_url.
+  * Tips: a stated measurement (g, kg, %, kcal, ...) needs a source_url. Every category
+    keeps at least 5 active tips: the quota fills any category below that first, and
+    nothing here ever retires a tip.
   * Quotes: every quote needs an attribution and a source_url it was checked against.
-  * Weekly focus: one per ISO week, this week (Mon-Sat) or next week (Fri-Sun),
+  * Weekly focus: carries a tip category (Today's daily tip is drawn from it); one per
+    ISO week, this week (Mon-Sat) or next week (Fri-Sun),
     never overwriting one already set. Every number in it must appear in the user's
     data from the context file (small counts up to 12 excepted) — no invented figures.
 
@@ -58,6 +61,7 @@ NEWS_MAX_PER_RUN = 12
 KNOWN_URL_DAYS = 60         # dedupe window handed to the run and checked at publish
 
 TIPS_TARGET = 42            # the library the design calls for, built up over weeks
+TIPS_MIN_PER_CATEGORY = 5   # the floor every category must hold, at all times
 QUOTES_SEED = 40
 QUOTES_WEEKLY = 3
 QUOTES_CAP = 150
@@ -189,10 +193,46 @@ def open_mondays(today):
     return [m, nxt] if today.weekday() >= 4 else [m]
 
 
-def tip_quota(n):
-    if n >= TIPS_TARGET:
-        return 0
-    return min(12 if n < 12 else 6, TIPS_TARGET - n)
+def tip_counts(tips):
+    """Active tips per category."""
+    return {c: sum(1 for t in tips if t.get('category') == c and t.get('active', True))
+            for c in TIP_CATEGORIES}
+
+
+def tip_needs(by_cat):
+    """How many each category is short of the minimum."""
+    return {c: max(0, TIPS_MIN_PER_CATEGORY - by_cat.get(c, 0)) for c in TIP_CATEGORIES}
+
+
+def tip_quota(by_cat):
+    """Tips wanted this run: at least enough to fill every short category, plus steady growth
+    toward the target library."""
+    total = sum(by_cat.values())
+    growth = 0 if total >= TIPS_TARGET else min(12 if total < 12 else 6, TIPS_TARGET - total)
+    return max(sum(tip_needs(by_cat).values()), growth)
+
+
+def allocate_tips(rows, by_cat):
+    """Spend the run's quota: tips for categories below the minimum first, then the rest in
+    batch order. Returns (accepted, [(row, reason), ...])."""
+    quota = tip_quota(by_cat)
+    needs, room = tip_needs(by_cat), quota
+    accepted, rest = [], []
+    for r in rows:
+        if room and needs[r['category']] > 0:
+            needs[r['category']] -= 1
+            room -= 1
+            accepted.append(r)
+        else:
+            rest.append(r)
+    refused = []
+    for r in rest:
+        if room:
+            room -= 1
+            accepted.append(r)
+        else:
+            refused.append((r, "over this run's tip quota (%d)" % quota))
+    return accepted, refused
 
 
 def quote_quota(n):
@@ -299,8 +339,12 @@ def check_focus(item, open_weeks, pool):
     except (TypeError, ValueError):
         return None, 'year and week must be integers'
     title, body = clean(item.get('title')), clean(item.get('body'))
+    wanted = clean(item.get('category')).lower()
+    category = next((c for c in TIP_CATEGORIES if c.lower() == wanted), None)
     if week not in open_weeks:
         return None, 'week %d-W%02d is not open (already set, or not this/next week)' % week
+    if not category:
+        return None, 'category must be one of the tip categories (Today draws its daily tip from it)'
     if not 3 <= len(title) <= 48:
         return None, 'title must be 3-48 characters'
     if not 40 <= len(body) <= 300:
@@ -308,7 +352,8 @@ def check_focus(item, open_weeks, pool):
     bad = sorted({n for n in numbers_in(title + ' ' + body) if not number_ok(n, pool)})
     if bad:
         return None, 'numbers not found in your data: %s' % ', '.join('%g' % n for n in bad)
-    return content_row(kind='focus', year=week[0], week=week[1], title=title, body=body), None
+    return content_row(kind='focus', category=category, year=week[0], week=week[1],
+                       title=title, body=body), None
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +377,7 @@ def get_or_empty(sb, path):
 
 def existing_content(sb):
     # Inactive rows count too, so a retired tip or quote is not written again.
-    return sb.call('GET', 'content?select=kind,category,title,body,attribution,year,week'
+    return sb.call('GET', 'content?select=kind,category,title,body,attribution,year,week,active'
                           '&kind=in.(tip,quote,focus)&limit=5000') or []
 
 
@@ -441,12 +486,14 @@ def prepare(sb, task, run_dir, today):
         have = {(c['year'], c['week']) for c in content if c['kind'] == 'focus'}
         mondays = [m for m in open_mondays(today) if iso_week(m) not in have]
         mine = personal_summary(sb, today, mondays)
-        by_cat = {c: sum(1 for t in tips if t.get('category') == c) for c in TIP_CATEGORIES}
+        by_cat = tip_counts(tips)
         ctx.update({
             'focus_needed': mine['weeks'],
             'training': mine['training'],
             'weight': mine['weight'],
-            'tips': {'count': len(tips), 'target': TIPS_TARGET, 'to_write': tip_quota(len(tips)),
+            'tips': {'count': sum(by_cat.values()), 'target': TIPS_TARGET,
+                     'min_per_category': TIPS_MIN_PER_CATEGORY, 'to_write': tip_quota(by_cat),
+                     'needed_by_category': {c: n for c, n in tip_needs(by_cat).items() if n},
                      'by_category': by_cat,
                      'categories_most_needed': sorted(TIP_CATEGORIES, key=lambda c: (by_cat[c], TIP_CATEGORIES.index(c))),
                      'existing_titles': sorted(t['title'] for t in tips if t.get('title'))},
@@ -540,8 +587,9 @@ def publish(sb, task, run_dir, today, apply):
         pool = collect_numbers([ctx.get('focus_needed'), ctx.get('training'), ctx.get('weight')])
         seen_titles = {norm_text(t.get('title')) for t in tips}
         seen_quotes = {norm_text(x.get('body')) for x in quotes}
-        tip_room, quote_room = tip_quota(len(tips)), quote_quota(len(quotes))
-        rows, counts = [], {'focus': 0, 'tips': 0, 'quotes': 0}
+        by_cat = tip_counts(tips)
+        quote_room = quote_quota(len(quotes))
+        rows, counts, valid_tips = [], {'focus': 0, 'tips': 0, 'quotes': 0}, []
 
         for kind, items, check in (
                 ('focus', batch.get('focus'), lambda i: check_focus(i, open_weeks, pool)),
@@ -554,23 +602,38 @@ def publish(sb, task, run_dir, today, apply):
             for item in items:
                 label = (item.get('title') or item.get('body')) if isinstance(item, dict) else ''
                 row, why = check(item)
-                if not why and kind == 'tips' and counts['tips'] >= tip_room:
-                    why = 'library needs %d more tips this run' % tip_room
                 if not why and kind == 'quotes' and counts['quotes'] >= quote_room:
                     why = 'only %d quotes wanted this run' % quote_room
-                report(kind[:-1] if kind != 'focus' else 'focus', label, why)
                 if why:
+                    report(kind[:-1] if kind != 'focus' else 'focus', label, why)
                     summary['skipped'] += 1
                     continue
+                if kind == 'tips':
+                    # Held back: tips are allocated below, short categories first.
+                    seen_titles.add(norm_text(row['title']))
+                    valid_tips.append(row)
+                    continue
+                report(kind[:-1] if kind != 'focus' else 'focus', label)
                 counts[kind] += 1
                 rows.append(row)
                 if kind == 'focus':
                     open_weeks.discard((row['year'], row['week']))
-                elif kind == 'tips':
-                    seen_titles.add(norm_text(row['title']))
                 else:
                     seen_quotes.add(norm_text(row['body']))
-        summary.update(counts)
+
+        accepted, refused = allocate_tips(valid_tips, by_cat)
+        for row in accepted:
+            report('tip', '[%s] %s' % (row['category'], row['title']))
+            counts['tips'] += 1
+            rows.append(row)
+            by_cat[row['category']] += 1
+        for row, why in refused:
+            report('tip', row['title'], why)
+            summary['skipped'] += 1
+        summary.update(counts, tips_by_category=by_cat)
+        short = ['%s %d/%d' % (c, n, TIPS_MIN_PER_CATEGORY) for c, n in by_cat.items() if n < TIPS_MIN_PER_CATEGORY]
+        if short:
+            print('WARN tip categories below the minimum after this run: ' + ', '.join(short))
         if apply and rows:
             try:
                 summary['written'] = len(sb.call('POST', 'content?select=id', rows,

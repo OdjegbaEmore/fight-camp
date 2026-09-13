@@ -48,6 +48,14 @@ export function tips(category){
     .sort((a, b) => TIP_CATEGORIES.indexOf(a.category) - TIP_CATEGORIES.indexOf(b.category) || b.id - a.id);
 }
 
+// A different tip each day, cycling through one category (the whole library when none).
+export function tipOfDay(iso, category){
+  const pool = tips(category).sort((a, b) => a.id - b.id);
+  if (!pool.length) return null;
+  const day = Math.floor(Date.parse(iso + 'T00:00:00Z') / 86400000);
+  return pool[day % pool.length];
+}
+
 export function newsStories(category){
   return (state.news || []).filter(n => !category || n.category === category);
 }

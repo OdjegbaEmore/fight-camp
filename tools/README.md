@@ -97,6 +97,7 @@ python3 tools/test_content_publish.py    # the rules, offline
 
 The rules the model can't talk its way past, all enforced in code: news needs a real
 URL, a known category, a publish date within 10 days, and no quoted run over 12 words;
-a tip stating a measured figure needs a `source_url`; every quote needs an attribution and
-a `source_url`; one focus per ISO week, never overwritten, and every number in it must
+a tip stating a measured figure needs a `source_url`; every tip category keeps at least 5 active
+tips (short categories are filled first, and a run that leaves one short prints `WARN`); every quote needs an attribution and
+a `source_url`; one focus per ISO week, carrying the tip category Today's daily tip is drawn from, never overwritten, and every number in it must
 appear in that week's context data (counts up to 12 excepted).
