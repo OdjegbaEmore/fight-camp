@@ -152,6 +152,11 @@ both are marked ⚠ below, and the code is the authority on both.
       found in the 22 unmatched (all are unbooked bike rides and Sunday sessions).
 18. **Classes pane** on Train (a fourth segment), plus the **Next session** card on Today.
     Read-only; deep link *out* to the gym's schedule, **no Book button** — see cuts.
+    **Changed 2026-09-13:** on a phone the link opens the gym's app via its App Store / Google
+    Play page (tap Open), on desktop the web schedule. The app can't be opened directly: no
+    universal-link file on archetypeboxing.com or the Mariana Tek domains, no published URL
+    scheme, and four candidate schemes failed on the user's iPhone. See `gymLink()` in
+    `js/archetype.js`.
 
 **Where the logic lives.** `tools/archetype_sync.py` — Python 3.9 stdlib, because this Mac
 has no Node. A scheduled task does the Gmail search (only it has the connector), writes the

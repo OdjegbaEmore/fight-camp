@@ -7,7 +7,7 @@
 import { state } from '../state.js';
 import { el, fmt, shortDate, longDate, shortTime, pad3, escapeAttr, todayISO } from '../util.js';
 import { saveWorkoutName } from '../data.js';
-import { upcomingReservations, displayClass, scheduleUrl, localNow } from '../archetype.js';
+import { upcomingReservations, displayClass, gymLink, localNow } from '../archetype.js';
 import {
   campMode, intakeFor, burnFor, netFor, sortedDates,
   latestWeight, baselineWeight
@@ -158,18 +158,21 @@ function renderWeeklyFocus(){
 }
 
 // The soonest booked class, from the gym's confirmation emails. Links out to the
-// gym's schedule — there is no Book button, booking lives in the gym's app.
+// gym's app on a phone (its web schedule on desktop) — there is no Book button,
+// booking lives in the gym's app.
 function renderNextSession(){
   const now = localNow();
   const title = el('t_next_title'), meta = el('t_next_meta');
-  const link = (date, label) =>
-    `<a class="lab" href="${scheduleUrl(date)}" target="_blank" rel="noopener"
-        style="display:inline-block; padding:12px 0 12px 12px; color:var(--muted); text-decoration:none;">${label} ↗</a>`;
+  const link = date => {
+    const g = gymLink(date);
+    return `<a class="lab" href="${g.url}" target="_blank" rel="noopener"
+        style="display:inline-block; padding:12px 0 12px 12px; color:var(--muted); text-decoration:none;">${g.label} ↗</a>`;
+  };
 
   if (state.reservations === null) {
     title.textContent = '— —';
     meta.textContent = 'Reservations could not be loaded.';
-    el('t_next_right').innerHTML = link(now.date, 'Schedule');
+    el('t_next_right').innerHTML = link(now.date);
     return;
   }
 
@@ -177,7 +180,7 @@ function renderNextSession(){
   if (!next) {
     title.textContent = 'Nothing booked';
     meta.textContent = 'Book in the Archetype app and it appears here.';
-    el('t_next_right').innerHTML = link(now.date, 'Schedule');
+    el('t_next_right').innerHTML = link(now.date);
     return;
   }
 
@@ -185,7 +188,7 @@ function renderNextSession(){
   const day = next.date === now.date ? 'Today' : next.date === tomorrow ? 'Tomorrow' : longDate(next.date);
   title.textContent = displayClass(next.className);
   meta.textContent = `${day} · ${shortTime(next.startTime)}${next.instructors ? ' · ' + next.instructors : ''}`;
-  el('t_next_right').innerHTML = link(next.date, 'Schedule');
+  el('t_next_right').innerHTML = link(next.date);
 }
 
 // Per-session breakdown, straight from Myzone. The design's category bars

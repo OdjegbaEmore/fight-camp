@@ -3,7 +3,7 @@
 import { state, hooks } from '../state.js';
 import { el, fmt, shortTime, shortDate, longDate, escapeAttr, todayISO } from '../util.js';
 import { saveTemplate, deleteTemplate, logTemplateSession } from '../data.js';
-import { upcomingReservations, pastReservations, displayClass, scheduleUrl, localNow } from '../archetype.js';
+import { upcomingReservations, pastReservations, displayClass, gymLink, localNow } from '../archetype.js';
 import { tapConfirm } from '../tapconfirm.js';
 import {
   runner, startSession, pauseToggle, isPaused, skipRound, endSession,
@@ -281,7 +281,10 @@ function renderHistory(){
 // ---------------------------------------------------------------------------
 function renderClasses(){
   const now = localNow();
-  el('cl_schedule').href = scheduleUrl(now.date);
+  // The gym's app on a phone (via its store page), its web schedule on desktop.
+  const g = gymLink(now.date);
+  el('cl_schedule').href = g.url;
+  el('cl_schedule').textContent = g.kind === 'web' ? 'Open the gym schedule ↗' : 'Open the Archetype app ↗';
 
   if (state.reservations === null) {
     el('cl_count').textContent = '— —';

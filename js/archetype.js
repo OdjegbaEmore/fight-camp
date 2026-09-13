@@ -50,3 +50,27 @@ export function scheduleUrl(dateISO){
   const inner = `/schedule/daily/48541?activeDate=${dateISO}&locations=48717`;
   return 'https://www.archetypeboxing.com/schedule?_mt=' + encodeURIComponent(inner);
 }
+
+// The gym's own app — a Mariana Tek white-label build, bundle com.marianatek.archetype.
+export const APP_STORE_URL = 'https://apps.apple.com/us/app/archetype-boxing-club/id1585888501';
+export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.marianatek.archetype';
+
+// Where "book at the gym" should go on this device. On a phone that is the gym's
+// app, reached through its store page, whose Open button launches it when installed.
+//
+// Why not open the app directly (checked 2026-09-13):
+//   - No universal links: archetypeboxing.com serves no apple-app-site-association
+//     (HTTP 500) and neither do the Mariana Tek tenant domains (404), so no https
+//     link can hand off to the app.
+//   - No published URL scheme, and com.marianatek.archetype://, marianatek-archetype://,
+//     archetype:// and archetypeboxing:// all failed when tried in Safari on the
+//     user's iPhone.
+// If the gym ever ships universal links or a scheme, change only this function.
+export function gymLink(dateISO, ua = globalThis.navigator ? navigator.userAgent : '',
+                        touchPoints = globalThis.navigator ? navigator.maxTouchPoints : 0){
+  // iPadOS reports a Mac user agent; touch support gives it away.
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1);
+  if (ios) return { url: APP_STORE_URL, label: 'Open app', kind: 'ios' };
+  if (/Android/.test(ua)) return { url: PLAY_STORE_URL, label: 'Open app', kind: 'android' };
+  return { url: scheduleUrl(dateISO), label: 'Schedule', kind: 'web' };
+}
