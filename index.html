@@ -285,6 +285,8 @@
   .tip summary .listrow-s { flex:0 0 auto; }
   .tip[open] summary .listrow-t { color:var(--accent); }
   .tip-body { font-size:14px; line-height:1.5; color:var(--paper); padding:0 0 12px; }
+  .tip-title { font-family:var(--cond); font-size:21px; font-weight:600; line-height:1.15; margin:5px 0 6px; }
+  #t_tip_more { min-height:40px; }
   .tip-body a, .article-link-note a { color:var(--muted); }
   .story { cursor:pointer; }
   .story-title { font-family:var(--cond); font-size:22px; font-weight:600; line-height:1.12; margin:6px 0; }
@@ -435,6 +437,17 @@
           <div class="lab" id="t_focus_eyebrow">Weekly focus</div>
           <div class="focus-title" id="t_focus_title">—</div>
           <div style="font-size:12.5px; color:var(--muted); line-height:1.5;" id="t_focus_body">—</div>
+        </div>
+
+        <!-- tip of the day: drawn from the week's focus category -->
+        <div id="t_tip_block" class="card" hidden>
+          <div class="lab" id="t_tip_lab">Tip of the day</div>
+          <div class="tip-title" id="t_tip_title">—</div>
+          <div class="tip-body" id="t_tip_body">—</div>
+          <div class="row-between">
+            <button type="button" class="btn-quiet" id="t_tip_more">More tips ›</button>
+            <a class="listrow-s" id="t_tip_src" href="#" target="_blank" rel="noopener" hidden style="color:var(--muted);">Source ↗</a>
+          </div>
         </div>
 
         <!-- quote: off-season only -->

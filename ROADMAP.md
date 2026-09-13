@@ -119,6 +119,14 @@ summary carried details the page doesn't state and whose date was invented — h
 page. News order is newest `published_at`, then the task's own order within a day.
 **Merged to `main` 2026-09-13** with the user's approval.
 
+**Tip of the day — added 2026-09-13 (branch `tip-of-the-day`).** Each weekly focus now carries a
+tip category (`content.category` on the focus row). Today shows a different tip from that category
+each day (cycling by day number) and **More … tips** opens Train → Tips filtered to it; with no
+focus it draws from the whole library. The publisher keeps **at least 5 active tips per
+category**: `tip_quota` covers every shortfall first (`allocate_tips` accepts short-category tips
+before any others), nothing retires tips, and a run that leaves a category short prints `WARN`.
+Backfilled: week 37 → Recovery, week 38 → Conditioning; a top-up run brought every category to 5.
+
 **Guards in code, not prose:** freshness gate on date-stamped batch *and* context files;
 news needs a real URL, a date within 10 days, a known category, no quoted run over 12 words;
 a tip stating a measured figure needs `source_url`; every quote needs attribution +

@@ -43,6 +43,13 @@ export function renderTrain(){
 
 export function setPane(p){ pane = p; hooks.render(); }
 
+// Today's "More tips" button: the Tips pane, filtered to one category ('' = all).
+export function showTips(category){
+  if (!runner.active) { pane = 'tips'; tipCat = category || ''; }   // a live session keeps the screen
+  location.hash = '#/train';
+  hooks.render();
+}
+
 // ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------

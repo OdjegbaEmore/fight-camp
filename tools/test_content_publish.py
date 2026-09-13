@@ -105,7 +105,7 @@ class Focus(unittest.TestCase):
            'weight': {'change_28d': {'lb': -2.5}}, 'training': [{'minutes': 412}]}
 
     def item(self, **kw):
-        f = {'year': 2026, 'week': 38, 'title': 'Keep the jab sharp',
+        f = {'year': 2026, 'week': 38, 'category': 'offence', 'title': 'Keep the jab sharp',
              'body': 'Nine classes booked. Double the jab before every combination and reset your guard.'}
         f.update(kw)
         return f
@@ -116,6 +116,12 @@ class Focus(unittest.TestCase):
         self.assertIsNone(cp.check_focus(self.item(body='9 classes booked and down 2.5 lb in four weeks. Stay patient behind the jab.'), weeks, pool)[1])
         self.assertIsNone(cp.check_focus(self.item(body='412 minutes last week. Two 6:30 starts — sleep early and keep 3-round mitt work sharp.'), weeks, pool)[1])
         self.assertIn('not found in your data', cp.check_focus(self.item(body='You are 14 lb from target, so tighten the diet and keep the jab busy.'), weeks, pool)[1])
+
+    def test_needs_a_tip_category(self):
+        pool = {9.0}
+        row, why = cp.check_focus(self.item(), {(2026, 38)}, pool)
+        self.assertEqual(row['category'], 'Offence')
+        self.assertIn('category', cp.check_focus(self.item(category='Sparring'), {(2026, 38)}, pool)[1])
 
     def test_week_must_be_open(self):
         self.assertIn('not open', cp.check_focus(self.item(week=40), {(2026, 38)}, set())[1])
@@ -128,10 +134,19 @@ class Weeks(unittest.TestCase):
         self.assertEqual(len(cp.open_mondays(dt.date(2026, 9, 18))), 2)   # Friday
 
     def test_quotas(self):
-        self.assertEqual(cp.tip_quota(0), 12)
-        self.assertEqual(cp.tip_quota(12), 6)
-        self.assertEqual(cp.tip_quota(40), 2)
-        self.assertEqual(cp.tip_quota(42), 0)
+        even = lambda n: {c: n for c in cp.TIP_CATEGORIES}
+        self.assertEqual(cp.tip_quota(even(0)), 30)                     # fill all six to five
+        self.assertEqual(cp.tip_quota(even(2)), 18)
+        self.assertEqual(cp.tip_quota(even(5)), 6)                      # floor met: growth only
+        self.assertEqual(cp.tip_quota(even(7)), 0)                      # target reached
+        self.assertEqual(cp.tip_quota(dict(even(8), Defence=3)), 2)     # the floor beats the target
+
+    def test_allocation_fills_short_categories_first(self):
+        rows = ([{'category': 'Defence', 'title': 'd%d' % i} for i in range(3)]
+                + [{'category': 'Footwork', 'title': 'f%d' % i} for i in range(2)])
+        accepted, refused = cp.allocate_tips(rows, dict({c: 8 for c in cp.TIP_CATEGORIES}, Footwork=3))
+        self.assertEqual([r['category'] for r in accepted], ['Footwork', 'Footwork'])
+        self.assertEqual(len(refused), 3)
         self.assertEqual(cp.quote_quota(0), 40)
         self.assertEqual(cp.quote_quota(25), 3)
         self.assertEqual(cp.quote_quota(150), 0)

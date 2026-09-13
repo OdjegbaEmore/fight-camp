@@ -8,7 +8,8 @@ import { state } from '../state.js';
 import { el, fmt, shortDate, longDate, shortTime, pad3, escapeAttr, todayISO } from '../util.js';
 import { saveWorkoutName } from '../data.js';
 import { upcomingReservations, displayClass, gymLink, localNow } from '../archetype.js';
-import { focusFor, quoteOfDay, isoWeekOf } from '../content.js';
+import { focusFor, quoteOfDay, isoWeekOf, tips, tipOfDay } from '../content.js';
+import { showTips } from './train.js';
 import {
   campMode, intakeFor, burnFor, netFor, sortedDates,
   latestWeight, baselineWeight
@@ -39,6 +40,7 @@ export function renderToday(){
   else renderQuote(t);
 
   renderWeeklyFocus();
+  renderDailyTip();
   renderNextSession();
   renderBreakdown();
 }
@@ -136,6 +138,30 @@ function renderWeeklyFocus(){
   el('t_focus_body').textContent = f ? f.body
     : state.content === null ? 'The weekly focus could not be loaded.'
     : 'The weekly focus is written on Sunday night for the week ahead.';
+}
+
+// A new tip each day from the week's focus category, so the tip backs up the focus.
+// With no focus, or no tips in its category, it draws from the whole library.
+function renderDailyTip(){
+  const t = todayISO();
+  const focus = focusFor(t);
+  const cat = focus && focus.category && tips(focus.category).length ? focus.category : '';
+  const tip = tipOfDay(t, cat);
+  el('t_tip_block').hidden = !tip;
+  if (!tip) return;
+  el('t_tip_lab').textContent = 'Tip of the day · ' + tip.category;
+  el('t_tip_title').textContent = tip.title;
+  el('t_tip_body').textContent = tip.body;
+  const src = el('t_tip_src');
+  src.hidden = !tip.sourceUrl;
+  if (tip.sourceUrl) src.href = tip.sourceUrl;
+  const more = el('t_tip_more');
+  more.dataset.cat = cat;
+  more.textContent = `More ${cat ? cat + ' ' : ''}tips · ${tips(cat).length} ›`;
+}
+
+export function wireToday(){
+  el('t_tip_more').addEventListener('click', ev => showTips(ev.currentTarget.dataset.cat || ''));
 }
 
 // The soonest booked class, from the gym's confirmation emails. Links out to the

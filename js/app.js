@@ -3,7 +3,7 @@
 import { sb, state, hooks } from './state.js';
 import { el, todayISO, setSyncStatus } from './util.js';
 import { loadAll, ensureToday, setupRealtime, maybeOfferImport, loadDiary, loadWeek } from './data.js';
-import { renderToday } from './views/today.js';
+import { renderToday, wireToday } from './views/today.js';
 import { renderProgress, wireProgress, resizeCharts, startCampForm } from './views/progress.js';
 import { renderTrain, wireTrain } from './views/train.js';
 import { renderFuel, wireFuel, wireCookbook } from './views/fuel.js';
@@ -88,6 +88,7 @@ async function boot(){
 }
 
 // ---- Wiring ----
+wireToday();
 wireProgress();
 wireMore();
 wireEntry();
