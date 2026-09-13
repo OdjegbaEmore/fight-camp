@@ -21,6 +21,11 @@ export const state = {
   plans: [],
   diary: [],
   diaryDate: null,
+  // The week shown in Planner and Groceries (its Monday), loaded on demand like
+  // the diary. planner/grocery are null when the Phase 6 tables are missing.
+  week: null,
+  planner: [],
+  grocery: [],
   // The date the entry sheet is currently editing. Was the Log tab's date field.
   editDate: null
 };

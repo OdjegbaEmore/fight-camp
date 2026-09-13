@@ -1,21 +1,23 @@
-// Progress — weight & DEXA, calories, camp mode. Also the entry point for the
-// daily weigh-in sheet.
+// Progress — weight & DEXA, and camps: start, end, remove, and a look back at
+// any camp's chart and numbers. Also the entry point for the daily weigh-in sheet.
 
 import { sb, state, hooks } from '../state.js';
-import { el, fmt, shortDate, todayISO } from '../util.js';
+import { el, fmt, shortDate, longDate, escapeAttr, todayISO } from '../util.js';
 import { C } from '../config.js';
-import { deleteDexa, upsertEntry, saveCamp } from '../data.js';
+import { deleteDexa, upsertEntry, saveCamp, deleteCamp } from '../data.js';
 import {
-  intakeFor, burnFor, rmrFor, sortedDates, latestWeight,
-  weighedDatesBetween, baselineWeight, campMode, chartRange, campsSorted
+  latestWeight, weighedDatesBetween, baselineWeight, campMode, chartRange,
+  campsSorted, campStats
 } from '../calc.js';
 import { openEntry } from './entry.js';
+import { tapConfirm } from '../tapconfirm.js';
 
-let weightChart, calChart;
+let weightChart = null, campChart = null;
+let formMode = null;       // null | 'start' | 'edit'
+let openCampId = null;     // camp shown in the look-back sheet
 
 export function resizeCharts(){
   if (weightChart) weightChart.resize();
-  if (calChart) calChart.resize();
 }
 
 export function renderProgress(){
@@ -32,7 +34,7 @@ export function renderProgress(){
   el('p_range').textContent = wDates.length
     ? `${shortDate(wDates[0])} → ${shortDate(wDates[wDates.length-1])}`
     : range.label;
-  el('p_scope').textContent = range.scope === 'camp' ? range.label : range.label;
+  el('p_scope').textContent = range.label;
 
   // Rate: lb/week across the weighed span inside the current range.
   let rate = null;
@@ -77,18 +79,18 @@ export function renderProgress(){
         : 'No scan logged'}</div>
     </div>`;
 
-  renderWeightChart(range);
-  renderCalChart(range);
+  const ctx = el('weightChart');
+  if (weightChart) { weightChart.destroy(); weightChart = null; }
+  if (wDates.length) weightChart = weightLine(ctx, wDates);
+  else ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+
   renderDexaTable();
   renderCampPanel();
+  renderCampSheet();
 }
 
-function renderWeightChart(range){
-  const dates = weighedDatesBetween(range.from, range.to);
-  const ctx = el('weightChart');
-  if (weightChart) weightChart.destroy();
-  if (dates.length === 0) { ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height); return; }
-  weightChart = new Chart(ctx, {
+function weightLine(canvas, dates){
+  return new Chart(canvas, {
     type: 'line',
     data: {
       labels: dates.map(shortDate),
@@ -112,43 +114,6 @@ function renderWeightChart(range){
   });
 }
 
-function renderCalChart(range){
-  const dates = sortedDates().filter(d => d <= todayISO() && d >= range.from && d <= range.to);
-  const last = dates.slice(-30);
-  const ctx = el('calChart');
-  if (calChart) calChart.destroy();
-  if (last.length === 0) { ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height); return; }
-
-  const intake = last.map(d => intakeFor(state.entries[d]));
-  // Per-day snapshot, so the rest-burn band is what each day was actually
-  // measured against rather than today's RMR applied backwards.
-  const rest   = last.map(d => rmrFor(state.entries[d]));
-  const active = last.map(d => Number(state.entries[d].trainingCal)||0);
-  const net    = last.map((d,i) => (rest[i] + active[i]) - intake[i]);
-
-  calChart = new Chart(ctx, {
-    data: {
-      labels: last.map(shortDate),
-      datasets: [
-        { type:'bar', label:'Intake', data: intake, backgroundColor:'rgba(248,244,244,0.22)', stack:'intake', order:2 },
-        { type:'bar', label:'Rest', data: rest, backgroundColor:'rgba(248,244,244,0.38)', stack:'burn', order:2 },
-        { type:'bar', label:'Training', data: active, backgroundColor:C.accent, stack:'burn', order:2 },
-        { type:'line', label:'Net', data: net, borderColor:C.paper, backgroundColor:C.paper, yAxisID:'y1', tension:0, borderWidth:1.5, pointRadius:0, order:1 }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode:'index', intersect:false },
-      plugins: { legend: { labels:{ color:C.muted, boxWidth:10, boxHeight:10, font:{ family:'Barlow Condensed', size:12 } } } },
-      scales: {
-        y:  { stacked:true, grid:{ color:C.grid }, ticks:{ color:C.muted, font:{ family:'Barlow Condensed', size:11 } }, border:{ display:false } },
-        y1: { position:'right', grid:{ drawOnChartArea:false }, ticks:{ color:C.muted, font:{ family:'Barlow Condensed', size:11 } }, border:{ display:false } },
-        x:  { stacked:true, grid:{ display:false }, ticks:{ color:C.muted, font:{ family:'Barlow Condensed', size:10 }, maxRotation:0, autoSkipPadding:14 }, border:{ color:C.grid } }
-      }
-    }
-  });
-}
-
 function renderDexaTable(){
   const body = el('dexaBody');
   const scans = (state.dexaScans||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
@@ -159,7 +124,7 @@ function renderDexaTable(){
   body.innerHTML = scans.map(s => `
     <tr>
       <td>${shortDate(s.date)}</td>
-      <td class="note-cell">${s.label||''}</td>
+      <td class="note-cell">${escapeAttr(s.label||'')}</td>
       <td>${fmt(s.weight,1)}</td>
       <td>${fmt(s.bf,1)}%</td>
       <td>${fmt(s.lean,1)}</td>
@@ -170,36 +135,148 @@ function renderDexaTable(){
   });
 }
 
+// ---------------------------------------------------------------------------
+// Camps
+// ---------------------------------------------------------------------------
+const sign1 = v => `${v <= 0 ? '−' : '+'}${fmt(Math.abs(v),1)}`;
+
 function renderCampPanel(){
   const cm = campMode();
+  const today = todayISO();
   const camps = campsSorted();
-  el('cm_state').textContent = cm.active
-    ? `Running · day ${cm.dayIndex} of ${cm.dayCount}`
-    : (camps.length ? 'No camp running' : 'No camps yet');
 
-  const current = cm.active ? cm.camp : (camps.length ? camps[camps.length-1] : null);
-  if (current) {
-    el('cm_name').value = current.name || '';
-    el('cm_start').value = current.startDate || '';
-    el('cm_end').value = current.endDate || '';
-    el('cm_target').value = current.targetWeight ?? '';
-    el('cm_id').value = current.id;
-    el('cm_archive').hidden = !!current.archived;
-    el('cm_archive').textContent = current.archived ? 'Archived' : 'Archive this camp';
-  } else {
-    el('cm_id').value = '';
+  el('cm_state').textContent = cm.active ? `Day ${cm.dayIndex} of ${cm.dayCount}` : 'No camp running';
+  el('cm_current').hidden = !cm.active || formMode !== null;
+  el('cm_start_btn').hidden = cm.active || formMode !== null;
+  el('cm_form').hidden = formMode === null;
+  el('cm_save').textContent = formMode === 'edit' ? 'Save changes' : 'Start camp';
+
+  if (cm.active) {
+    const c = cm.camp;
+    el('cm_cur_name').textContent = c.name;
+    el('cm_cur_dates').textContent = `${shortDate(c.startDate)} → ${shortDate(c.endDate)} · ${cm.daysOut} ${cm.daysOut === 1 ? 'day' : 'days'} left`
+      + (c.targetWeight ? ` · target ${fmt(c.targetWeight,1)} lb` : '');
+    el('cm_cur_bar').style.width = cm.pct + '%';
   }
 
-  el('cm_list').innerHTML = camps.length
-    ? camps.map(c => `
-        <div class="listrow">
-          <div>
-            <div class="listrow-t">${c.name}</div>
-            <div class="listrow-s">${shortDate(c.startDate)} → ${shortDate(c.endDate)}${c.archived ? ' · archived' : ''}</div>
+  // Everything except the running camp, newest first.
+  const others = camps.filter(c => !(cm.active && c.id === cm.camp.id)).reverse();
+  el('cm_list').innerHTML = others.length
+    ? others.map(c => {
+        const s = campStats(c);
+        const upcoming = c.startDate > today;
+        return `
+        <div class="listrow" data-camp="${c.id}" role="button" tabindex="0" style="cursor:pointer;">
+          <div style="min-width:0;">
+            <div class="listrow-t">${escapeAttr(c.name)}</div>
+            <div class="listrow-s">${shortDate(c.startDate)} → ${shortDate(c.endDate)} · ${s.dayCount} days${upcoming ? ' · upcoming' : ''}</div>
           </div>
-          <div class="listrow-v">${c.targetWeight ? fmt(c.targetWeight,0) : '—'}</div>
-        </div>`).join('')
-    : `<div class="empty-note">No camps recorded.</div>`;
+          <div style="display:flex; align-items:center; gap:10px; flex:0 0 auto;">
+            <span class="listrow-v" style="font-size:17px;">${!upcoming && s.change !== null ? sign1(s.change) + ' lb' : ''}</span>
+            <button class="btn-quiet" data-cdel="${c.id}" type="button">Remove</button>
+          </div>
+        </div>`;
+      }).join('')
+    : `<div class="empty-note">No past camps.</div>`;
+
+  el('cm_list').querySelectorAll('[data-camp]').forEach(row => {
+    const open = ev => { if (ev.target.closest('[data-cdel]')) return; openCampId = Number(row.dataset.camp); hooks.render(); };
+    row.addEventListener('click', open);
+    row.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(ev); } });
+  });
+  el('cm_list').querySelectorAll('[data-cdel]').forEach(btn =>
+    btn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      tapConfirm(btn, 'Tap to confirm', () => deleteCamp(Number(btn.dataset.cdel)));
+    }));
+}
+
+function renderCampSheet(){
+  const camp = openCampId !== null ? campsSorted().find(c => c.id === openCampId) : null;
+  el('campSheet').hidden = !camp;
+  if (!camp) {
+    openCampId = null;
+    if (campChart) { campChart.destroy(); campChart = null; }
+    return;
+  }
+
+  const s = campStats(camp);
+  const today = todayISO();
+  const over = camp.archived || camp.endDate < today;
+  el('cs_name').textContent = camp.name;
+  el('cs_dates').textContent = `${longDate(camp.startDate)} → ${longDate(camp.endDate)} · ${s.dayCount} days`
+    + (!s.started ? ' · upcoming' : over ? ' · ended' : ' · running');
+
+  const cell = (lab, val, note, accent) => `
+    <div>
+      <div class="lab">${lab}</div>
+      <div class="cell-v"${accent ? ' style="color:var(--accent);"' : ''}>${val}</div>
+      <div class="cell-n">${note || ''}</div>
+    </div>`;
+
+  const target = camp.targetWeight ? Number(camp.targetWeight) : null;
+  const targetNote = target === null ? 'No target set'
+    : s.last ? (s.last.weight <= target ? `Target ${fmt(target,1)} reached` : `${fmt(s.last.weight - target,1)} lb from ${fmt(target,1)} target`)
+    : `Target ${fmt(target,1)} lb`;
+
+  el('cs_weight').innerHTML = !s.started
+    ? cell('Starts', shortDate(camp.startDate), 'Nothing to show yet') + cell('Target', target ? `${fmt(target,1)} <small>lb</small>` : '—', '')
+    : cell('Start', s.first ? `${fmt(s.first.weight,1)} <small>lb</small>` : '—', s.first ? shortDate(s.first.date) : 'No weigh-in')
+      + cell(over ? 'End' : 'Latest', s.last ? `${fmt(s.last.weight,1)} <small>lb</small>` : '—', s.last ? shortDate(s.last.date) : 'No weigh-in')
+      + cell('Change', s.change !== null ? `${sign1(s.change)} <small>lb</small>` : '—', targetNote, true)
+      + cell('Rate', s.rate !== null ? `${s.rate >= 0 ? '−' : '+'}${fmt(Math.abs(s.rate),1)} <small>lb/wk</small>` : '—',
+             `${s.weighed} weigh-ins over ${s.daysDone} ${s.daysDone === 1 ? 'day' : 'days'}`);
+
+  el('cs_train').innerHTML = !s.started ? '' :
+      cell('Avg deficit', s.avgDeficit !== null ? `${fmt(s.avgDeficit)} <small>kcal/day</small>` : '—',
+           `${s.loggedDays} logged ${s.loggedDays === 1 ? 'day' : 'days'}`)
+    + cell('Total deficit', s.loggedDays ? `${fmt(s.totalDeficit)} <small>kcal</small>` : '—',
+           s.loggedDays ? `≈ ${fmt(s.totalDeficit / 3500,1)} lb at 3,500 kcal/lb` : '')
+    + cell('Myzone', `${s.sessions} <small>sessions</small>`, `${fmt(s.minutes / 60,1)} hours · ${fmt(s.trainingKcal)} kcal`)
+    + cell('Round timer', `${s.timerSessions} <small>sessions</small>`, 'Template sessions run');
+  el('cs_train').hidden = !s.started;
+  el('cs_train_lab').hidden = !s.started;
+
+  el('cs_dexa_lab').hidden = !s.scans.length;
+  el('cs_dexa').innerHTML = s.scans.map(d => `
+    <div class="listrow">
+      <div>
+        <div class="listrow-t">${escapeAttr(d.label || 'DEXA scan')}</div>
+        <div class="listrow-s">${shortDate(d.date)} · ${fmt(d.weight,1)} lb · lean ${fmt(d.lean,1)} lb</div>
+      </div>
+      <div class="listrow-v">${fmt(d.bf,1)}<small style="font-size:12px; color:var(--muted);">%</small></div>
+    </div>`).join('');
+
+  // The canvas has no size until the sheet is visible, so draw on the next frame.
+  const has = s.weighedDates.length > 0;
+  el('cs_chartbox').hidden = !has;
+  el('cs_chartnote').hidden = has;
+  const id = camp.id;
+  requestAnimationFrame(() => {
+    if (campChart) { campChart.destroy(); campChart = null; }
+    if (openCampId === id && has) campChart = weightLine(el('campChart'), s.weighedDates);
+  });
+}
+
+function fillForm(c){
+  el('cm_id').value = c ? c.id : '';
+  el('cm_name').value = c ? c.name : '';
+  el('cm_start').value = c ? c.startDate : todayISO();
+  el('cm_end').value = c ? c.endDate : '';
+  el('cm_target').value = c && c.targetWeight != null ? c.targetWeight : '';
+  showErr('');
+}
+
+function showErr(msg){
+  el('cm_err').textContent = msg;
+  el('cm_err').hidden = !msg;
+}
+
+export function startCampForm(){
+  formMode = 'start';
+  fillForm(null);
+  hooks.render();
+  setTimeout(() => el('cm_name').focus(), 50);
 }
 
 export function wireProgress(){
@@ -229,7 +306,19 @@ export function wireProgress(){
     hooks.render();
   });
 
-  el('cm_save').addEventListener('click', async function(){
+  el('cm_start_btn').addEventListener('click', startCampForm);
+
+  el('cm_edit').addEventListener('click', () => {
+    const cm = campMode();
+    if (!cm.active) return;
+    formMode = 'edit';
+    fillForm(cm.camp);
+    hooks.render();
+  });
+
+  el('cm_cancel').addEventListener('click', () => { formMode = null; showErr(''); hooks.render(); });
+
+  el('cm_save').addEventListener('click', async () => {
     const id = el('cm_id').value;
     const camp = {
       id: id ? Number(id) : null,
@@ -239,26 +328,36 @@ export function wireProgress(){
       targetWeight: el('cm_target').value === '' ? null : Number(el('cm_target').value),
       archived: false
     };
-    if (!camp.startDate || !camp.endDate) { alert('A camp needs a start and end date.'); return; }
-    if (camp.endDate < camp.startDate) { alert('The end date cannot be before the start date.'); return; }
-    await saveCamp(camp);
+    if (!camp.startDate || !camp.endDate) { showErr('A camp needs a start and an end date.'); return; }
+    if (camp.endDate < camp.startDate) { showErr('The end date cannot be before the start date.'); return; }
+    // Two running camps would make "the active camp" ambiguous.
+    const clash = campsSorted().find(c => c.id !== camp.id && !c.archived
+      && c.startDate <= camp.endDate && camp.startDate <= c.endDate);
+    if (clash) { showErr(`Those dates overlap "${clash.name}" (${shortDate(clash.startDate)} → ${shortDate(clash.endDate)}). End or remove it first.`); return; }
+    if (await saveCamp(camp)) { formMode = null; hooks.render(); }
+    else showErr('Could not save the camp — check the sync status.');
   });
 
-  el('cm_new').addEventListener('click', function(){
-    el('cm_id').value = '';
-    el('cm_name').value = '';
-    el('cm_start').value = todayISO();
-    el('cm_end').value = '';
-    el('cm_target').value = '';
-    el('cm_name').focus();
+  el('cm_end_btn').addEventListener('click', () => {
+    tapConfirm(el('cm_end_btn'), 'Tap again to end', async () => {
+      const cm = campMode();
+      if (!cm.active) return;
+      const today = todayISO();
+      // Ends today (or on its planned date if that is sooner) and is archived, so
+      // camp mode switches off straight away.
+      await saveCamp(Object.assign({}, cm.camp, {
+        endDate: cm.camp.endDate < today ? cm.camp.endDate : today,
+        archived: true
+      }));
+    });
   });
 
-  el('cm_archive').addEventListener('click', async function(){
-    const id = el('cm_id').value;
-    if (!id) return;
-    const camp = campsSorted().find(c => c.id === Number(id));
-    if (!camp) return;
-    if (!confirm(`Archive "${camp.name}"?\n\nIts logs and charts become read-only. Your diary and training history stay in the main timeline.`)) return;
-    await saveCamp(Object.assign({}, camp, { archived: true }));
+  el('cm_view_current').addEventListener('click', () => {
+    const cm = campMode();
+    if (cm.active) { openCampId = cm.camp.id; hooks.render(); }
   });
+
+  const closeSheet = () => { openCampId = null; hooks.render(); };
+  el('cs_close').addEventListener('click', closeSheet);
+  el('cs_backdrop').addEventListener('click', closeSheet);
 }

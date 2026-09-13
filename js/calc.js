@@ -124,3 +124,49 @@ export function chartRange(){
     label: `Last ${OFFSEASON_WINDOW_DAYS} days`
   };
 }
+
+function daysBetween(a, b){
+  return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+}
+
+// Everything the camp look-back shows, for any camp — running, ended or upcoming.
+// Measured inside the camp's own dates, and only up to today for one still running.
+export function campStats(camp){
+  const today = todayISO();
+  const from = camp.startDate;
+  const to = camp.endDate < today ? camp.endDate : today;
+  const started = from <= today;
+
+  const weighedDates = started ? weighedDatesBetween(from, to) : [];
+  const at = d => ({ date: d, weight: Number(state.entries[d].weight) });
+  const first = weighedDates.length ? at(weighedDates[0]) : null;
+  const last = weighedDates.length ? at(weighedDates[weighedDates.length - 1]) : null;
+  const rate = (first && last && last.date > first.date)
+    ? ((first.weight - last.weight) / daysBetween(first.date, last.date)) * 7
+    : null;
+
+  const days = started ? sortedDates().filter(d => d >= from && d <= to) : [];
+  const totalDeficit = days.reduce((a, d) => a + netFor(state.entries[d]), 0);
+  const sessions = (state.workouts || []).filter(w => w.date >= from && w.date <= to);
+  const pad = 14;   // a scan a week or two either side still describes the camp
+  const scans = (state.dexaScans || [])
+    .filter(s => s.date >= isoMinusDays(from, pad) && s.date <= isoMinusDays(to, -pad))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    started,
+    dayCount: daysBetween(camp.startDate, camp.endDate) + 1,
+    daysDone: started ? daysBetween(from, to) + 1 : 0,
+    weighedDates, weighed: weighedDates.length, first, last,
+    change: first && last ? last.weight - first.weight : null,
+    rate,
+    loggedDays: days.length,
+    avgDeficit: days.length ? totalDeficit / days.length : null,
+    totalDeficit,
+    trainingKcal: days.reduce((a, d) => a + (Number(state.entries[d].trainingCal) || 0), 0),
+    sessions: sessions.length,
+    minutes: sessions.reduce((a, w) => a + (Number(w.minutes) || 0), 0),
+    timerSessions: (state.templateSessions || []).filter(s => s.date >= from && s.date <= to).length,
+    scans
+  };
+}

@@ -16,8 +16,12 @@ export function renderMore(){
     : 'Not connected';
   el('conn_myzone').classList.toggle('on', sessions > 0);
 
-  el('conn_gym').textContent = 'Not connected';
-  el('conn_gym').classList.remove('on');
+  // Reservations are synced from the gym's emails (Phase 5). null = failed to load.
+  const classes = state.reservations;
+  el('conn_gym').textContent = classes === null ? 'Unavailable'
+    : classes.length ? `Connected · ${classes.length} ${classes.length === 1 ? 'class' : 'classes'}`
+    : 'Not connected';
+  el('conn_gym').classList.toggle('on', !!(classes && classes.length));
   el('conn_news').textContent = 'Not connected';
   el('conn_news').classList.remove('on');
 }

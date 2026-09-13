@@ -1,7 +1,7 @@
 // Minimal offline cache for the Fight Camp Tracker PWA.
 // Network-first (with cache fallback) for the HTML shell so code updates show up immediately;
 // cache-first (stale-while-revalidate) for static assets that rarely change.
-const CACHE_NAME = 'fight-camp-tracker-v8';
+const CACHE_NAME = 'fight-camp-tracker-v10';
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,12 +17,14 @@ const APP_SHELL = [
   './js/util.js',
   './js/calc.js',
   './js/archetype.js',
+  './js/tapconfirm.js',
   './js/data.js',
   './js/runner.js',
   './js/foodsearch.js',
   './js/seed-fuel.js',
   './js/views/today.js',
   './js/views/train.js',
+  './js/views/planner.js',
   './js/views/fuel.js',
   './js/views/progress.js',
   './js/views/more.js',
@@ -37,7 +39,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     // Individually, so one unreachable CDN can't abort the whole precache.
     caches.open(CACHE_NAME).then((cache) =>
-      Promise.all(APP_SHELL.map((url) => cache.add(url).catch(() => {})))
+      // Our own files with cache:'reload', so the offline copy is what the server holds
+      // now rather than whatever the browser's HTTP cache had — a stale HTTP cache once
+      // seeded the precache with a pre-edit module. CDN entries keep the default.
+      Promise.all(APP_SHELL.map((url) =>
+        cache.add(url.startsWith('http') ? url : new Request(url, { cache: 'reload' })).catch(() => {})))
     )
   );
   self.skipWaiting();
@@ -61,7 +67,10 @@ self.addEventListener('fetch', (event) => {
   // Only fall back to cache if there's no connection.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      // cache:'no-cache' revalidates with the server. A bare fetch() can be answered
+      // from the browser's HTTP cache, which would serve stale code after a deploy
+      // (GitHub Pages sends max-age=600) and made a local test run old modules.
+      fetch(event.request, { cache: 'no-cache' })
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
@@ -80,7 +89,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin === self.location.origin && url.pathname.endsWith('.js')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-cache' })
         .then((response) => {
           if (response && response.status === 200) {
             const copy = response.clone();

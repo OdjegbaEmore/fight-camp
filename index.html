@@ -265,7 +265,9 @@
   .step-row:last-child { border-bottom:0; }
   .step-n { font-family:var(--cond); font-size:13px; color:var(--accent); flex:0 0 auto; width:16px; }
   .sheet-backdrop { position:absolute; inset:0; background:rgba(13,12,12,0.72); }
-  #addSheet, #recipeSheet { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; }
+  #addSheet, #recipeSheet, #campSheet, #pickSheet { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; }
+  /* tapconfirm.js: a button waiting for its second tap */
+  .armed { border-color:var(--accent) !important; color:var(--accent) !important; }
   #toast {
     position:fixed; left:50%; transform:translateX(-50%);
     bottom:calc(var(--tabbar) + env(safe-area-inset-bottom) + 14px);
@@ -556,7 +558,8 @@
         <div class="seg" id="fu_seg">
           <button type="button" data-pane="diary" class="on">Diary</button>
           <button type="button" data-pane="cookbook">Cookbook</button>
-          <button type="button" data-pane="plans">Plans</button>
+          <button type="button" data-pane="planner">Planner</button>
+          <button type="button" data-pane="groceries">Groceries</button>
         </div>
 
         <!-- diary -->
@@ -605,10 +608,39 @@
           <div id="cb_list"></div>
         </div>
 
-        <!-- plans -->
-        <div id="fu_plans" class="stack-tight" hidden>
-          <span class="lab">Meal plans</span>
+        <!-- planner: a week of meals from the cookbook -->
+        <div id="fu_planner" class="stack-tight" hidden>
+          <div class="row-between">
+            <button class="btn-round" id="pw_prev" type="button" aria-label="Previous week">‹</button>
+            <span class="lab" id="pw_label">— —</span>
+            <button class="btn-round" id="pw_next" type="button" aria-label="Next week">›</button>
+          </div>
+          <div class="note-sm" id="pw_note" hidden></div>
+          <div id="pw_days"></div>
+          <button class="btn-quiet" id="pw_clear" type="button" hidden>Clear this week</button>
+          <div class="note-sm">Fill day on the Diary uses the planner for any day it has meals, and your daily plan otherwise.</div>
+          <span class="lab" style="margin-top:8px;">Day plans</span>
           <div id="pl_list"></div>
+        </div>
+
+        <!-- groceries: built from the week's planner, plus anything added by hand -->
+        <div id="fu_groceries" class="stack-tight" hidden>
+          <div class="row-between">
+            <button class="btn-round" id="gw_prev" type="button" aria-label="Previous week">‹</button>
+            <span class="lab" id="gw_label">— —</span>
+            <button class="btn-round" id="gw_next" type="button" aria-label="Next week">›</button>
+          </div>
+          <div class="note-sm" id="gr_note" hidden></div>
+          <button class="btn-ghost" id="gr_build" type="button">Build from this week's planner</button>
+          <div id="gr_addrow" style="display:flex; gap:8px; align-items:center;">
+            <div class="field" style="flex:1; margin:0;"><input type="text" id="gr_new" placeholder="Add an item…" aria-label="Add a grocery item" autocomplete="off"></div>
+            <button class="btn-ghost" id="gr_add" type="button">Add</button>
+          </div>
+          <div id="gr_list"></div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-quiet" id="gr_clear" type="button" hidden>Clear ticked items</button>
+            <button class="btn-quiet" id="gr_clearall" type="button" hidden>Clear whole list</button>
+          </div>
         </div>
       </div>
     </section>
@@ -637,10 +669,6 @@
 
         <div class="grid2" id="p_grid"></div>
 
-        <div class="stack-tight">
-          <span class="lab">Calories in vs out</span>
-          <div class="chart-box"><canvas id="calChart"></canvas></div>
-        </div>
 
         <div class="stack-tight">
           <span class="lab">DEXA checkpoints</span>
@@ -662,23 +690,47 @@
 
         <div class="stack-tight">
           <div class="row-between">
-            <span class="lab">Camp mode</span>
+            <span class="lab">Camp</span>
             <span class="lab" id="cm_state">—</span>
           </div>
-          <input type="hidden" id="cm_id">
-          <div class="field"><label for="cm_name">Camp name</label><input type="text" id="cm_name" placeholder="e.g. Winter Camp 2027"></div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-            <div class="field"><label for="cm_start">Start</label><input type="date" id="cm_start"></div>
-            <div class="field"><label for="cm_end">End</label><input type="date" id="cm_end"></div>
+
+          <!-- the running camp -->
+          <div class="card" id="cm_current" hidden>
+            <div class="row-between" style="align-items:flex-start;">
+              <div style="min-width:0;">
+                <div class="listrow-t" id="cm_cur_name">—</div>
+                <div class="listrow-s" id="cm_cur_dates">—</div>
+              </div>
+              <button type="button" class="btn-quiet" id="cm_view_current">View</button>
+            </div>
+            <div class="bar-track" style="margin:10px 0 2px;"><div class="bar-fill" id="cm_cur_bar" style="width:0%"></div></div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button type="button" class="btn-ghost" id="cm_edit" style="flex:1;">Edit</button>
+              <button type="button" class="btn-danger" id="cm_end_btn" style="flex:1;">End camp</button>
+            </div>
           </div>
-          <div class="field"><label for="cm_target">Target weight (optional)</label><input type="number" step="0.1" inputmode="decimal" id="cm_target"></div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="btn-ghost" id="cm_save">Save camp</button>
-            <button type="button" class="btn-quiet" id="cm_new">New camp</button>
-            <button type="button" class="btn-quiet" id="cm_archive">Archive this camp</button>
+
+          <button type="button" class="btn-solid" id="cm_start_btn" hidden>Start a camp</button>
+
+          <!-- start / edit form -->
+          <div class="card stack-tight" id="cm_form" hidden>
+            <input type="hidden" id="cm_id">
+            <div class="field"><label for="cm_name">Camp name</label><input type="text" id="cm_name" placeholder="e.g. Winter Camp 2027"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div class="field"><label for="cm_start">Start</label><input type="date" id="cm_start"></div>
+              <div class="field"><label for="cm_end">End</label><input type="date" id="cm_end"></div>
+            </div>
+            <div class="field"><label for="cm_target">Target weight (optional)</label><input type="number" step="0.1" inputmode="decimal" id="cm_target"></div>
+            <div class="note-sm" id="cm_err" hidden style="color:var(--accent);"></div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn-solid" id="cm_save" style="flex:1;">Start camp</button>
+              <button type="button" class="btn-quiet" id="cm_cancel">Cancel</button>
+            </div>
           </div>
-          <div style="font-size:12px; color:var(--muted); line-height:1.5;">Archiving keeps a camp's logs and charts read-only; the diary and training history stay in the main timeline.</div>
+
+          <span class="lab" style="margin-top:8px;">Past camps</span>
           <div id="cm_list"></div>
+          <div class="note-sm">Tap a camp for its chart and numbers. Removing a camp deletes only the camp record — your weigh-ins, food and training stay in the timeline.</div>
         </div>
       </div>
     </section>
@@ -744,6 +796,7 @@
           <div class="seg" id="add_seg">
             <button type="button" data-tab="favourites" class="on">Favourites</button>
             <button type="button" data-tab="search">Search</button>
+            <button type="button" data-tab="create">Create</button>
           </div>
 
           <div id="add_fav">
@@ -755,6 +808,25 @@
             <div class="note-sm" id="search_notes" hidden></div>
             <div class="note-sm" id="search_status"></div>
             <div id="search_list"></div>
+          </div>
+          <!-- create your own food: saved to the foods table as source 'custom' -->
+          <div id="add_create" class="stack-tight" hidden>
+            <div class="field"><label for="cf_name">Food name</label><input type="text" id="cf_name" placeholder="e.g. Homemade chili" autocomplete="off"></div>
+            <div class="field"><label for="cf_brand">Brand (optional)</label><input type="text" id="cf_brand" autocomplete="off"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div class="field"><label for="cf_serving">Serving</label><input type="text" id="cf_serving" placeholder="1 bowl" autocomplete="off"></div>
+              <div class="field"><label for="cf_grams">Grams (optional)</label><input type="number" id="cf_grams" inputmode="decimal" step="1" min="0"></div>
+            </div>
+            <span class="lab">Per serving</span>
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px;">
+              <div class="field"><label for="cf_kcal">kcal</label><input type="number" id="cf_kcal" inputmode="decimal" step="1" min="0"></div>
+              <div class="field"><label for="cf_protein">Protein g</label><input type="number" id="cf_protein" inputmode="decimal" step="0.1" min="0"></div>
+              <div class="field"><label for="cf_fat">Fat g</label><input type="number" id="cf_fat" inputmode="decimal" step="0.1" min="0"></div>
+              <div class="field"><label for="cf_carb">Carbs g</label><input type="number" id="cf_carb" inputmode="decimal" step="0.1" min="0"></div>
+            </div>
+            <div class="note-sm" id="cf_err" hidden style="color:var(--accent);"></div>
+            <button class="btn-solid" id="cf_save" type="button">Save food and choose a portion</button>
+            <div class="note-sm">Saved to your food list in the app's database, so it shows in Favourites and at the top of Search from now on.</div>
           </div>
         </div>
 
@@ -800,6 +872,41 @@
       </div>
     </div>
 
+    <!-- ══════════ CAMP LOOK-BACK SHEET ══════════ -->
+    <div id="campSheet" hidden>
+      <div id="cs_backdrop" class="sheet-backdrop"></div>
+      <div class="sheet">
+        <div class="screen-head">
+          <h2 class="h2" id="cs_name">—</h2>
+          <button class="btn-x" id="cs_close" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="stack-tight">
+          <div class="lab" id="cs_dates">—</div>
+          <div class="card-accent">
+            <span class="tick-l"></span><span class="tick-r"></span>
+            <div class="lab">Weight</div>
+            <div class="chart-box" id="cs_chartbox"><canvas id="campChart"></canvas></div>
+            <div class="note-sm" id="cs_chartnote" hidden>No weigh-ins inside this camp's dates.</div>
+          </div>
+          <div class="grid2" id="cs_weight"></div>
+          <span class="lab" id="cs_train_lab" style="margin-top:6px;">Fuel and training</span>
+          <div class="grid2" id="cs_train"></div>
+          <span class="lab" id="cs_dexa_lab" style="margin-top:6px;">DEXA scans</span>
+          <div id="cs_dexa"></div>
+        </div>
+      </div>
+    </div>
+    <!-- ══════════ RECIPE PICKER (planner) ══════════ -->
+    <div id="pickSheet" hidden>
+      <div id="pk_backdrop" class="sheet-backdrop"></div>
+      <div class="sheet">
+        <div class="screen-head">
+          <h2 class="h2" id="pk_title">—</h2>
+          <button class="btn-x" id="pk_close" type="button" aria-label="Close">✕</button>
+        </div>
+        <div id="pk_list"></div>
+      </div>
+    </div>
     <!-- toast -->
     <div id="toast" hidden>
       <span id="toast_msg">—</span>

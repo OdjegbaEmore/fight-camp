@@ -4,6 +4,7 @@ import { state, hooks } from '../state.js';
 import { el, fmt, shortTime, shortDate, longDate, escapeAttr, todayISO } from '../util.js';
 import { saveTemplate, deleteTemplate, logTemplateSession } from '../data.js';
 import { upcomingReservations, pastReservations, displayClass, scheduleUrl, localNow } from '../archetype.js';
+import { tapConfirm } from '../tapconfirm.js';
 import {
   runner, startSession, pauseToggle, isPaused, skipRound, endSession,
   positionAt, expandRounds, workCount, audioState
@@ -235,9 +236,11 @@ export function wireRunner(){
 
   el('run_pause').addEventListener('click', () => { pauseToggle(); paintRunner(positionAt(Date.now())); });
   el('run_skip').addEventListener('click', skipRound);
-  el('run_end').addEventListener('click', () => {
-    if (!confirm('End this session early?\n\nIt is still logged, marked incomplete.')) return;
-    endSession();
+  el('run_end').addEventListener('click', ev => {
+    ev.stopPropagation();
+    // Two taps, not confirm(): a suppressed native dialog returns false and the
+    // button silently did nothing. The session is still logged, marked incomplete.
+    tapConfirm(el('run_end'), 'Tap again to end', endSession);
   });
   // Tapping anywhere in the live runner nudges a suspended audio context back.
   el('run_live').addEventListener('click', () => { if (audioState() !== 'running') paintRunner(positionAt(Date.now())); });

@@ -1,4 +1,5 @@
-// Fuel — food diary, add food, cookbook, meal plans.
+// Fuel — food diary, add food (favourites, search, create your own), cookbook,
+// weekly planner and grocery list. The last two live in planner.js.
 
 import { state, hooks } from '../state.js';
 import { el, fmt, shortDate, escapeAttr, todayISO } from '../util.js';
@@ -9,10 +10,11 @@ import {
 } from '../data.js';
 import { searchFoods, portionMacros } from '../foodsearch.js';
 import { SEED_RECIPES, SEED_PLANS } from '../seed-fuel.js';
+import { renderPlanner, renderGroceries, renderPickSheet } from './planner.js';
 
-let pane = 'diary';           // diary | cookbook | plans
+let pane = 'diary';           // diary | cookbook | planner | groceries
 let addOpen = false;
-let addTab = 'favourites';    // favourites | search  (barcode is cut)
+let addTab = 'favourites';    // favourites | search | create  (barcode is cut)
 let searchResults = [];
 let searchNotes = [];
 let searching = false;
@@ -21,19 +23,23 @@ let openRecipeId = null;
 let undoBuffer = null;        // rows removed by Clear plan
 let searchAbort = null;
 
+const PANES = ['diary', 'cookbook', 'planner', 'groceries'];
+
 export function renderFuel(){
   el('fu_seg').querySelectorAll('button').forEach(b =>
     b.classList.toggle('on', b.dataset.pane === pane));
-  ['diary','cookbook','plans'].forEach(p => el('fu_' + p).hidden = (p !== pane));
+  PANES.forEach(p => el('fu_' + p).hidden = (p !== pane));
 
   if (pane === 'diary') renderDiary();
   else if (pane === 'cookbook') renderCookbook();
-  else renderPlans();
+  else if (pane === 'planner') renderPlanner();
+  else renderGroceries();
 
   el('addSheet').hidden = !addOpen;
   if (addOpen) renderAdd();
   el('recipeSheet').hidden = openRecipeId === null;
   if (openRecipeId !== null) renderRecipe();
+  renderPickSheet();
 }
 
 function setPane(p){ pane = p; hooks.render(); }
@@ -64,13 +70,15 @@ function renderDiary(){
   el('fu_macros').textContent =
     `P ${fmt(t.protein,0)} g · F ${fmt(t.fat,0)} g · C ${fmt(t.carb,0)} g`;
 
-  // Plan autofill bar — only while a plan is active.
+  // Fill-day bar — the planner's meals for this date win; the daily plan is the fallback.
+  const plannerDay = (state.planner || []).filter(e => e.date === date);
+  const sourceName = plannerDay.length ? 'Planner' : plan ? plan.name : null;
   const planned = state.diary.filter(d => d.source === 'plan');
-  el('fu_planbar').hidden = !plan;
-  if (plan) {
+  el('fu_planbar').hidden = !sourceName && !planned.length;
+  if (sourceName || planned.length) {
     el('fu_planname').textContent = planned.length
-      ? `${plan.name} autofilled · ${planned.length} ${planned.length === 1 ? 'meal' : 'meals'}`
-      : `${plan.name} · not filled in yet`;
+      ? `Filled from plan · ${planned.length} ${planned.length === 1 ? 'meal' : 'meals'}`
+      : `${sourceName}${plannerDay.length ? ` · ${plannerDay.length} ${plannerDay.length === 1 ? 'meal' : 'meals'}` : ''} · not filled in yet`;
     el('fu_planhint').textContent = planned.length
       ? 'Clear any meal you swapped out today.'
       : 'Fill the day from the plan, then edit what changed.';
@@ -128,6 +136,7 @@ function renderAdd(){
   el('add_seg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === addTab));
   el('add_fav').hidden = addTab !== 'favourites';
   el('add_search').hidden = addTab !== 'search';
+  el('add_create').hidden = addTab !== 'create';
 
   // Portion step takes over once a food is chosen.
   el('add_portion').hidden = !pendingFood;
@@ -139,26 +148,31 @@ function renderAdd(){
       .slice().sort((a,b) => (b.favourite - a.favourite) || (b.useCount - a.useCount));
     el('fav_list').innerHTML = favs.length
       ? favs.slice(0,25).map(f => rowFor(f)).join('')
-      : `<div class="empty-note">Nothing saved yet. Search for a food and it lands here.</div>`;
+      : `<div class="empty-note">Nothing saved yet. Search for a food or create your own and it lands here.</div>`;
     wireRows(el('fav_list'), favs);
-  } else {
+  } else if (addTab === 'search') {
     el('search_notes').textContent = searchNotes.join(' · ');
     el('search_notes').hidden = !searchNotes.length;
     el('search_status').textContent = searching ? 'Searching…' : '';
     el('search_list').innerHTML = searchResults.length
       ? searchResults.map(f => rowFor(f)).join('')
-      : (searching ? '' : `<div class="empty-note">Type at least two letters.</div>`);
+      : (searching ? '' : `<div class="empty-note">Type at least two letters. Your own foods come first.</div>`);
     wireRows(el('search_list'), searchResults);
   }
 }
 
 function rowFor(f){
   const id = f.id != null ? `db-${f.id}` : `new-${f.source}-${f.sourceId}`;
+  const who = f.brand || (f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : 'Your food');
+  // Custom foods are entered per serving, so show them that way.
+  const energy = f.source === 'custom'
+    ? `${fmt((f.kcal100 || 0) * (f.servingGrams || 100) / 100)} kcal / ${escapeAttr(f.servingDesc || 'serving')}`
+    : `${fmt(f.kcal100)} kcal/100g`;
   return `
     <div class="listrow food-row" data-fid="${id}" role="button" tabindex="0">
       <div style="min-width:0;">
         <div class="listrow-t">${escapeAttr(f.name)}</div>
-        <div class="listrow-s">${escapeAttr(f.brand || (f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : 'Custom'))} · ${fmt(f.kcal100)} kcal/100g</div>
+        <div class="listrow-s">${escapeAttr(who)} · ${energy}</div>
       </div>
       ${f.id != null ? `<button class="btn-round ${f.favourite ? 'on' : ''}" data-fav="${f.id}" type="button" aria-label="Favourite">${f.favourite ? '★' : '☆'}</button>` : ''}
     </div>`;
@@ -197,7 +211,47 @@ function renderPortion(){
   el('p_macros').textContent = `P ${fmt(m.protein,1)} g · F ${fmt(m.fat,1)} g · C ${fmt(m.carb,1)} g`;
   el('p_servinghint').textContent = f.servingGrams
     ? `1 serving ≈ ${fmt(f.servingGrams)} g${f.servingDesc ? ' · ' + f.servingDesc : ''}`
-    : 'Grams only — no serving size known';
+    : f.source === 'custom'
+      ? `1 serving = ${f.servingDesc || '1 serving'} · log it in servings`
+      : 'Grams only — no serving size known';
+}
+
+const CREATE_FIELDS = ['cf_name','cf_brand','cf_serving','cf_grams','cf_kcal','cf_protein','cf_fat','cf_carb'];
+
+// A food typed in by the user becomes a `foods` row (source 'custom') in the
+// app's own Supabase database — the same table searched foods are saved to — so
+// it shows in Favourites and at the top of Search from then on.
+async function createFood(){
+  const err = el('cf_err');
+  const name = el('cf_name').value.trim();
+  const kcalRaw = el('cf_kcal').value;
+  if (!name) { err.textContent = 'Give the food a name.'; err.hidden = false; return; }
+  if (kcalRaw === '' || !(Number(kcalRaw) >= 0)) { err.textContent = 'Enter the calories in one serving.'; err.hidden = false; return; }
+  err.hidden = true;
+
+  // Macros are stored per 100 g, like every other food. Without a serving
+  // weight, one serving is treated as a nominal 100 g so the serving maths hands
+  // back exactly the figures typed in.
+  const grams = Number(el('cf_grams').value) > 0 ? Number(el('cf_grams').value) : null;
+  const basis = grams || 100;
+  const per100 = id => +((Number(el(id).value) || 0) * 100 / basis).toFixed(2);
+
+  const saved = await saveFood({
+    source: 'custom', sourceId: null, name,
+    brand: el('cf_brand').value.trim(),
+    servingDesc: el('cf_serving').value.trim() || '1 serving',
+    servingGrams: grams,
+    kcal100: per100('cf_kcal'), protein100: per100('cf_protein'),
+    fat100: per100('cf_fat'), carb100: per100('cf_carb'),
+    favourite: true
+  });
+  if (!saved) { err.textContent = 'Could not save the food — check the sync status.'; err.hidden = false; return; }
+
+  CREATE_FIELDS.forEach(id => el(id).value = '');
+  el('p_unit').value = 'serving';
+  el('p_qty').value = '1';
+  pendingFood = saved;
+  hooks.render();
 }
 
 export function wireFuel(){
@@ -227,6 +281,7 @@ export function wireFuel(){
     const b = ev.target.closest('button[data-tab]'); if (!b) return;
     addTab = b.dataset.tab; hooks.render();
     if (addTab === 'search') setTimeout(() => el('add_q').focus(), 50);
+    if (addTab === 'create') setTimeout(() => el('cf_name').focus(), 50);
   });
 
   let debounce = null;
@@ -235,16 +290,29 @@ export function wireFuel(){
     clearTimeout(debounce);
     if (searchAbort) searchAbort.abort();
     debounce = setTimeout(async () => {
-      if (q.trim().length < 2) { searchResults = []; searchNotes = []; hooks.render(); return; }
-      searching = true; hooks.render();
+      const query = q.trim();
+      if (query.length < 2) { searchResults = []; searchNotes = []; hooks.render(); return; }
+
+      // Your own foods first — created ones and anything logged before — then the
+      // two public databases. The local match is instant and survives either API
+      // being down or rate limited.
+      const needle = query.toLowerCase();
+      const mine = (state.foods || []).filter(f =>
+        f.name.toLowerCase().includes(needle) || (f.brand || '').toLowerCase().includes(needle));
+      searchResults = mine; searchNotes = []; searching = true; hooks.render();
+
       searchAbort = new AbortController();
       try {
-        const r = await searchFoods(q, searchAbort.signal);
-        searchResults = r.results; searchNotes = r.notes;
+        const r = await searchFoods(query, searchAbort.signal);
+        const known = new Set(mine.filter(f => f.sourceId).map(f => f.source + ':' + f.sourceId));
+        searchResults = mine.concat(r.results.filter(x => !known.has(x.source + ':' + x.sourceId)));
+        searchNotes = r.notes;
       } catch(e) { searchNotes = [e.message]; }
       searching = false; hooks.render();
     }, 350);
   });
+
+  el('cf_save').addEventListener('click', createFood);
 
   el('p_back').addEventListener('click', () => { pendingFood = null; hooks.render(); });
   el('p_qty').addEventListener('input', renderPortion);
@@ -271,7 +339,6 @@ async function copyYesterday(){
   const date = state.diaryDate || todayISO();
   const d = new Date(date + 'T00:00:00'); d.setDate(d.getDate() - 1);
   const prev = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
-  const today = state.diary.slice();
   await loadDiary(prev);
   const rows = state.diary.map(x => ({ ...x, date }));
   await loadDiary(date);
@@ -349,40 +416,6 @@ export function wireCookbook(){
     const r = await seedCookbook(SEED_RECIPES, SEED_PLANS);
     toast(r.error ? r.error : `Imported ${r.recipes} recipes and ${r.plans} plans`);
   });
-}
-
-// ---------------------------------------------------------------------------
-// Plans
-// ---------------------------------------------------------------------------
-function renderPlans(){
-  const ps = state.plans || [];
-  el('pl_list').innerHTML = ps.length
-    ? ps.map(p => `
-        <div class="card" style="margin-bottom:10px;">
-          <div class="row-between">
-            <span class="listrow-t">${escapeAttr(p.name)}</span>
-            ${p.active ? '<span class="chip auto">Active</span>' : `<button class="btn-quiet" data-activate="${p.id}" type="button">Use this</button>`}
-          </div>
-          <div class="listrow-s" style="margin:4px 0 8px;">${escapeAttr(p.description || '')}</div>
-          <div class="row-between">
-            <span class="lab">${fmt(p.kcalTarget)} kcal · ${fmt(p.proteinTarget)}g protein</span>
-            <span class="lab">${p.items.length} meals</span>
-          </div>
-        </div>`).join('')
-    : `<div class="empty-note">No plans yet. Import the cookbook to bring both in.</div>`;
-
-  el('pl_list').querySelectorAll('[data-activate]').forEach(b =>
-    b.addEventListener('click', () => activatePlan(Number(b.dataset.activate))));
-}
-
-async function activatePlan(id){
-  const { sb } = await import('../state.js');
-  // meal_plans_one_active enforces a single active plan, so clear first.
-  await sb.from('meal_plans').update({ active: false }).neq('id', -1);
-  await sb.from('meal_plans').update({ active: true }).eq('id', id);
-  const { loadAll } = await import('../data.js');
-  await loadAll();
-  hooks.render();
 }
 
 // ---------------------------------------------------------------------------

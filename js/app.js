@@ -2,11 +2,12 @@
 
 import { sb, state, hooks } from './state.js';
 import { el, todayISO, setSyncStatus } from './util.js';
-import { loadAll, ensureToday, setupRealtime, maybeOfferImport, loadDiary } from './data.js';
+import { loadAll, ensureToday, setupRealtime, maybeOfferImport, loadDiary, loadWeek } from './data.js';
 import { renderToday } from './views/today.js';
-import { renderProgress, wireProgress, resizeCharts } from './views/progress.js';
+import { renderProgress, wireProgress, resizeCharts, startCampForm } from './views/progress.js';
 import { renderTrain, wireTrain } from './views/train.js';
 import { renderFuel, wireFuel, wireCookbook } from './views/fuel.js';
+import { wirePlanner, mondayOf } from './views/planner.js';
 import { renderMore, wireMore } from './views/more.js';
 import { wireEntry, refreshEntryIfOpen, openEntry } from './views/entry.js';
 
@@ -77,6 +78,9 @@ async function boot(){
   await maybeOfferImport();
   await ensureToday();
   await loadDiary(todayISO());
+  // This week's planner, so the diary's Fill day knows what is planned today.
+  // Failure-tolerant: without the Phase 6 tables it simply leaves the planner null.
+  await loadWeek(mondayOf(todayISO()));
   state.editDate = todayISO();
   applyRoute();
   render();
@@ -90,13 +94,14 @@ wireEntry();
 wireTrain();
 wireFuel();
 wireCookbook();
+wirePlanner();
 
 // The Today header pill starts a camp when none is running; while one is, it is
 // a read-only day counter.
 el('t_pill').addEventListener('click', function(){
   if (this.classList.contains('pill-line')) {
     location.hash = '#/progress';
-    setTimeout(() => el('cm_new').click(), 60);
+    setTimeout(startCampForm, 60);
   }
 });
 
