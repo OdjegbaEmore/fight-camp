@@ -5,12 +5,14 @@ import { el, fmt, shortTime, shortDate, longDate, escapeAttr, todayISO } from '.
 import { saveTemplate, deleteTemplate, logTemplateSession } from '../data.js';
 import { upcomingReservations, pastReservations, displayClass, gymLink, localNow } from '../archetype.js';
 import { tapConfirm } from '../tapconfirm.js';
+import { tips, TIP_CATEGORIES } from '../content.js';
 import {
   runner, startSession, pauseToggle, isPaused, skipRound, endSession,
   positionAt, expandRounds, workCount, audioState
 } from '../runner.js';
 
-let pane = 'templates';        // templates | builder | runner | history | classes
+let pane = 'templates';        // templates | builder | runner | history | classes | tips
+let tipCat = '';               // '' = all categories
 let draft = null;              // template being edited
 
 function mmss(sec){
@@ -28,13 +30,14 @@ export function renderTrain(){
   el('tr_seg').querySelectorAll('button').forEach(b =>
     b.classList.toggle('on', b.dataset.pane === pane));
 
-  ['templates','builder','runner','history','classes'].forEach(p =>
+  ['templates','builder','runner','history','classes','tips'].forEach(p =>
     el('tr_' + p).hidden = (p !== pane));
 
   if (pane === 'templates') renderTemplates();
   else if (pane === 'builder') renderBuilder();
   else if (pane === 'runner') renderRunner();
   else if (pane === 'classes') renderClasses();
+  else if (pane === 'tips') renderTips();
   else renderHistory();
 }
 
@@ -316,7 +319,45 @@ function renderClasses(){
     : `<div class="empty-note">No past classes in the last two months.</div>`;
 }
 
+// ---------------------------------------------------------------------------
+// Tips library — written by the weekly content task, read-only here
+// ---------------------------------------------------------------------------
+function renderTips(){
+  el('tp_cats').innerHTML = [['', 'All'], ...TIP_CATEGORIES.map(c => [c, c])].map(([k, label]) =>
+    `<button type="button" class="chip-f${k === tipCat ? ' on' : ''}" data-cat="${escapeAttr(k)}"
+       aria-pressed="${k === tipCat}">${escapeAttr(label)}</button>`).join('');
+
+  if (state.content === null) {
+    el('tr_count').textContent = '— —';
+    el('tp_list').innerHTML = `<div class="empty-note">Tips could not be loaded.</div>`;
+    return;
+  }
+  const total = tips().length;
+  el('tr_count').textContent = total ? `${total} ${total === 1 ? 'tip' : 'tips'}` : '— —';
+
+  const list = tips(tipCat);
+  el('tp_list').innerHTML = list.length
+    ? list.map(t => `
+        <details class="tip">
+          <summary>
+            <span class="listrow-t">${escapeAttr(t.title)}</span>
+            <span class="listrow-s">${escapeAttr(t.category)}</span>
+          </summary>
+          <div class="tip-body">${escapeAttr(t.body)}${t.sourceUrl
+            ? ` <a href="${escapeAttr(t.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a>` : ''}</div>
+        </details>`).join('')
+    : `<div class="empty-note">${total
+        ? `No ${escapeAttr(tipCat)} tips yet.`
+        : 'No tips yet. New ones are added every Sunday night.'}</div>`;
+}
+
 export function wireTrain(){
+  el('tp_cats').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-cat]');
+    if (!b) return;
+    tipCat = b.dataset.cat;
+    renderTips();
+  });
   el('tr_seg').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-pane]');
     if (!b) return;

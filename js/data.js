@@ -120,6 +120,22 @@ export async function loadAll(){
     targetWeight: r.target_weight, archived: !!r.archived, results: r.results_json || null
   }));
 
+  // Phase 4 content and news — written by the scheduled content tasks, read here.
+  const ctRes = await sb.from('content').select('*').eq('active', true);
+  state.content = ctRes.error ? null : (ctRes.data || []).map(r => ({
+    id:r.id, kind:r.kind, category:r.category || '', title:r.title || '', body:r.body,
+    attribution:r.attribution || '', year:r.year, week:r.week, sourceUrl:r.source_url || '',
+    active:!!r.active
+  }));
+
+  const nRes = await sb.from('news').select('*').eq('active', true)
+    // Newest day first; within a day, the order the news task listed them (its lead first).
+    .order('published_at', { ascending: false }).order('id', { ascending: true }).limit(80);
+  state.news = nRes.error ? null : (nRes.data || []).map(r => ({
+    id:r.id, url:r.url, title:r.title, source:r.source, category:r.category,
+    summary:r.summary, why:r.why || '', publishedAt:r.published_at
+  }));
+
   setSyncStatus('ok');
   return true;
 }

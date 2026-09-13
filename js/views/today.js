@@ -8,27 +8,11 @@ import { state } from '../state.js';
 import { el, fmt, shortDate, longDate, shortTime, pad3, escapeAttr, todayISO } from '../util.js';
 import { saveWorkoutName } from '../data.js';
 import { upcomingReservations, displayClass, gymLink, localNow } from '../archetype.js';
+import { focusFor, quoteOfDay, isoWeekOf } from '../content.js';
 import {
   campMode, intakeFor, burnFor, netFor, sortedDates,
   latestWeight, baselineWeight
 } from '../calc.js';
-
-// Rotating pull quote, one per day. Content, not a hardcoded string.
-const QUOTES = [
-  ['Everyone has a plan until they get punched in the mouth.', 'Mike Tyson'],
-  ['Champions are made from something they have deep inside them — a desire, a dream, a vision.', 'Muhammad Ali'],
-  ['I hated every minute of training, but I said: don’t quit. Suffer now and live the rest of your life as a champion.', 'Muhammad Ali'],
-  ['It’s not the man who can’t be hurt. It’s the man who keeps going.', 'Jack Dempsey'],
-  ['To be a great champion you must believe you are the best. If you’re not, pretend you are.', 'Muhammad Ali'],
-  ['The fight is won or lost far away from witnesses.', 'Muhammad Ali'],
-  ['You don’t get anything for free. You have to earn it every single day.', 'Bernard Hopkins']
-];
-
-function quoteOfDay(){
-  const t = todayISO();
-  const seed = Number(t.slice(0,4)) * 372 + Number(t.slice(5,7)) * 31 + Number(t.slice(8,10));
-  return QUOTES[seed % QUOTES.length];
-}
 
 export function renderToday(){
   const cm = campMode();
@@ -36,7 +20,7 @@ export function renderToday(){
   const e = state.entries[t];
 
   el('t_title').textContent = 'Today';
-  el('t_when').textContent = longDate(t).toUpperCase() + ' · WK ' + isoWeek(t);
+  el('t_when').textContent = longDate(t).toUpperCase() + ' · WK ' + isoWeekOf(t).week;
 
   // Header pill: camp day counter while running, "Start camp" otherwise.
   const pill = el('t_pill');
@@ -49,24 +33,14 @@ export function renderToday(){
   }
 
   el('t_camp_block').hidden = !cm.active;
-  el('t_quote_block').hidden = cm.active;   // no quote in camp mode — the screen is denser
 
-  if (cm.active) renderCampTelemetry(cm, e);
-  else renderQuote();
+  // No quote in camp mode — the screen is denser.
+  if (cm.active) { el('t_quote_block').hidden = true; renderCampTelemetry(cm, e); }
+  else renderQuote(t);
 
   renderWeeklyFocus();
   renderNextSession();
   renderBreakdown();
-}
-
-function isoWeek(iso){
-  const d = new Date(iso + 'T00:00:00');
-  const target = new Date(d.valueOf());
-  const dayNr = (d.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  const firstThursday = new Date(target.getFullYear(), 0, 4);
-  const diff = target - firstThursday;
-  return 1 + Math.round(diff / (7 * 86400000));
 }
 
 function renderCampTelemetry(cm, e){
@@ -143,18 +117,25 @@ function prevWeighIn(beforeISO){
   return prev;
 }
 
-function renderQuote(){
-  const [text, who] = quoteOfDay();
-  el('t_quote').textContent = '“' + text + '”';
-  el('t_quote_by').textContent = who;
+// Quotes are verified rows written by the weekly content task. With none stored
+// the block hides rather than showing an unverified fallback.
+function renderQuote(t){
+  const q = quoteOfDay(t);
+  el('t_quote_block').hidden = !q;
+  if (!q) return;
+  el('t_quote').textContent = '“' + q.body + '”';
+  el('t_quote_by').textContent = q.attribution;
 }
 
+// Written on Sunday night for the week ahead, from the camp, class and training data.
 function renderWeeklyFocus(){
-  // Weekly focus is content-table backed and arrives in Phase 4. Until then this
-  // is an honest empty state rather than an invented focus.
-  el('t_focus_eyebrow').textContent = 'Weekly focus · week ' + isoWeek(todayISO());
-  el('t_focus_title').textContent = 'Not set';
-  el('t_focus_body').textContent = 'Weekly focus arrives with the tips library.';
+  const t = todayISO();
+  const f = focusFor(t);
+  el('t_focus_eyebrow').textContent = 'Weekly focus · week ' + isoWeekOf(t).week;
+  el('t_focus_title').textContent = f ? f.title : 'Not set';
+  el('t_focus_body').textContent = f ? f.body
+    : state.content === null ? 'The weekly focus could not be loaded.'
+    : 'The weekly focus is written on Sunday night for the week ahead.';
 }
 
 // The soonest booked class, from the gym's confirmation emails. Links out to the
