@@ -14,6 +14,10 @@ export const state = {
   // Phase 5 migration not run), which the screens say rather than "nothing booked".
   reservations: [],
   camps: [],
+  // Phase 4, read-only, written by the content tasks. null = table missing or
+  // unreadable (supabase-phase4.sql not run), shown as a message, never a dead screen.
+  content: [],
+  news: [],
   templates: [],
   templateSessions: [],
   foods: [],

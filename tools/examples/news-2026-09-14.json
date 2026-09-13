@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-14",
+  "stories": [
+    {
+      "url": "https://example.com/boxing/title-fight-result",
+      "title": "Example: Champion retains title with late stoppage",
+      "source": "Example Sports",
+      "category": "pro",
+      "published_at": "2026-09-13",
+      "summary": "An illustrative story showing the shape the news task writes. The summary is always in the task's own words, two to four sentences, with a link to the page it read.",
+      "why": "Shows why a story matters to a boxer in camp, in one line."
+    },
+    {
+      "url": "https://example.org/research/sleep-and-reaction-time",
+      "title": "Example: Study links short sleep to slower reactions",
+      "source": "Example Journal",
+      "category": "science",
+      "published_at": "2026-09-11",
+      "summary": "Another illustrative story. Science items name the study and describe what it found and who it studied, without copying the abstract or inventing any figure the page did not state."
+    }
+  ]
+}

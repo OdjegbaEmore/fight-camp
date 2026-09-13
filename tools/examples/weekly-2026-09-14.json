@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-14",
+  "focus": [
+    {
+      "year": 2026,
+      "week": 38,
+      "title": "Jab discipline",
+      "body": "A full week of classes booked, so pace yourself. Double the jab before every combination and reset to guard before the second step."
+    }
+  ],
+  "tips": [
+    {
+      "category": "Footwork",
+      "title": "Step off after the jab",
+      "body": "After the jab lands, take one small step to your lead side before you throw again. It takes you off the centre line their counter is aimed at.",
+      "source_url": null
+    },
+    {
+      "category": "Fuel & Weight",
+      "title": "Spread protein across the day",
+      "body": "Illustrative only: a tip that states a measured figure, like grams per kilogram, must carry a source_url to the page that states it.",
+      "source_url": "https://example.org/nutrition/protein-distribution"
+    }
+  ],
+  "quotes": [
+    {
+      "body": "An example quote, in the shape the weekly task writes.",
+      "attribution": "Example Person",
+      "source_url": "https://example.org/verified-quote"
+    }
+  ]
+}

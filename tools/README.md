@@ -69,3 +69,34 @@ python3 tools/archetype_sync.py --emails emails.json --key-file PATH --apply    
 The rules (newest email wins; match on overlap; `name_auto` ownership) are documented at
 the top of the script and in `ROADMAP.md` Phase 5. Real email content is not committed
 anywhere — the repo is public — so fixtures for checking it live outside the repo.
+
+---
+
+# content_publish.py — news, weekly focus, tips and quotes (Phase 4)
+
+Also writes to the live database. Driven by two local scheduled tasks, both modelled on
+The Morning Wire: `fight-camp-news` (daily 5:30 AM) and `fight-camp-content` (Sunday
+10 PM). Each task runs exactly two fixed wrapper commands, `prepare.sh` then `publish.sh`,
+from its folder under `~/.claude/scheduled-tasks/`.
+
+```bash
+python3 tools/content_publish.py prepare --task news|weekly --run-dir DIR --key-file PATH
+python3 tools/content_publish.py publish --task news|weekly --run-dir DIR --key-file PATH [--apply]
+python3 tools/test_content_publish.py    # the rules, offline
+```
+
+- **prepare** is read-only. It writes `DIR/<task>-context-YYYY-MM-DD.json`: today's date,
+  the exact batch path, what already exists, how many tips/quotes are wanted, and for the
+  weekly task a summary of camp, booked classes, training load and weigh-in trend.
+- **publish** reads `DIR/<task>-YYYY-MM-DD.json`, prints `ADD`/`SKIP` per item, and writes
+  only with `--apply`. It aborts on a missing or wrongly dated batch or context file, and
+  refuses to write until `supabase-phase4.sql` has been run.
+- The run directory is `~/fight-camp-content/run/` — outside `~/.claude` on purpose.
+- `--today YYYY-MM-DD` pretends a date for dry runs only. `tools/examples/` holds batches
+  in the right shape with made-up content (the repo is public).
+
+The rules the model can't talk its way past, all enforced in code: news needs a real
+URL, a known category, a publish date within 10 days, and no quoted run over 12 words;
+a tip stating a measured figure needs a `source_url`; every quote needs an attribution and
+a `source_url`; one focus per ISO week, never overwritten, and every number in it must
+appear in that week's context data (counts up to 12 excepted).

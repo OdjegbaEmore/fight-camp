@@ -265,7 +265,34 @@
   .step-row:last-child { border-bottom:0; }
   .step-n { font-family:var(--cond); font-size:13px; color:var(--accent); flex:0 0 auto; width:16px; }
   .sheet-backdrop { position:absolute; inset:0; background:rgba(13,12,12,0.72); }
-  #addSheet, #recipeSheet, #campSheet, #pickSheet { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; }
+  #addSheet, #recipeSheet, #campSheet, #pickSheet, #articleSheet { position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; }
+
+  /* ── content: filter chips, tips, news ── */
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip-f {
+    font-family:var(--cond); font-size:13px; letter-spacing:0.06em; min-height:34px;
+    border:1px solid var(--line); border-radius:99px; background:var(--surface);
+    color:var(--muted); padding:5px 13px;
+  }
+  .chip-f.on { border-color:var(--accent); background:var(--accent); color:var(--ink); font-weight:600; }
+  .tip { border-bottom:1px solid var(--line-soft); }
+  .tip:last-child { border-bottom:0; }
+  .tip summary {
+    list-style:none; cursor:pointer; display:flex; justify-content:space-between; align-items:baseline;
+    gap:12px; padding:11px 0; min-height:44px;
+  }
+  .tip summary::-webkit-details-marker { display:none; }
+  .tip summary .listrow-s { flex:0 0 auto; }
+  .tip[open] summary .listrow-t { color:var(--accent); }
+  .tip-body { font-size:14px; line-height:1.5; color:var(--paper); padding:0 0 12px; }
+  .tip-body a, .article-link-note a { color:var(--muted); }
+  .story { cursor:pointer; }
+  .story-title { font-family:var(--cond); font-size:22px; font-weight:600; line-height:1.12; margin:6px 0; }
+  .story-sum { font-size:13.5px; line-height:1.5; color:var(--paper); margin-bottom:8px; }
+  .article-title { font-family:var(--cond); font-size:26px; font-weight:600; line-height:1.1; margin:0; }
+  .article-body { font-size:15.5px; line-height:1.5; margin:4px 0; }
+  a.btn-solid { display:block; text-align:center; text-decoration:none; font-family:var(--cond);
+    font-size:15px; font-weight:600; letter-spacing:0.06em; padding:12px 0; border-radius:6px; }
   /* tapconfirm.js: a button waiting for its second tap */
   .armed { border-color:var(--accent) !important; color:var(--accent) !important; }
   #toast {
@@ -450,6 +477,14 @@
           <button type="button" data-pane="runner">Runner</button>
           <button type="button" data-pane="history">History</button>
           <button type="button" data-pane="classes">Classes</button>
+          <button type="button" data-pane="tips">Tips</button>
+        </div>
+
+        <!-- tips library -->
+        <div id="tr_tips" class="stack-tight" hidden>
+          <div class="chips" id="tp_cats"></div>
+          <div id="tp_list"></div>
+          <div class="note-sm">Written by the weekly content task. A tip that states a figure links to its source.</div>
         </div>
 
         <!-- templates -->
@@ -738,16 +773,32 @@
     <!-- ══════════ MORE ══════════ -->
     <section class="view" id="view-more">
       <div class="screen-head">
-        <h2 class="h2">More</h2>
-        <span class="when sync-status"></span>
+        <h2 class="h2" id="mo_title">More</h2>
+        <span class="when sync-status" id="mo_sync"></span>
+        <span class="when" id="nw_sources" hidden>— —</span>
       </div>
 
-      <div class="stack">
+      <!-- news feed -->
+      <div id="mo_news" class="stack" hidden>
+        <button type="button" class="btn-quiet" id="nw_back" style="align-self:flex-start;">‹ More</button>
+        <div class="chips" id="nw_cats"></div>
+        <div id="nw_lead"></div>
+        <div class="stack-tight">
+          <span class="lab">Latest</span>
+          <div id="nw_list"></div>
+        </div>
+        <div class="note-sm">Summaries are written each morning by the news task from the linked story. Open the source for the full piece.</div>
+      </div>
+
+      <div class="stack" id="mo_main">
         <div class="stack-tight">
           <span class="lab">Connections</span>
           <div class="listrow"><div class="listrow-t">Myzone</div><div class="conn" id="conn_myzone">—</div></div>
           <div class="listrow"><div class="listrow-t">Gym schedule</div><div class="conn" id="conn_gym">—</div></div>
-          <div class="listrow"><div class="listrow-t">News</div><div class="conn" id="conn_news">—</div></div>
+          <div class="listrow story" id="news_open" role="button" tabindex="0">
+            <div class="listrow-t">News</div>
+            <div style="display:flex; align-items:center; gap:10px;"><div class="conn" id="conn_news">—</div><span class="listrow-s" aria-hidden="true">›</span></div>
+          </div>
         </div>
         <div class="stack-tight">
           <span class="lab">Gym app</span>
@@ -904,6 +955,27 @@
           <div class="grid2" id="cs_train"></div>
           <span class="lab" id="cs_dexa_lab" style="margin-top:6px;">DEXA scans</span>
           <div id="cs_dexa"></div>
+        </div>
+      </div>
+    </div>
+    <!-- ══════════ ARTICLE READER ══════════ -->
+    <div id="articleSheet" hidden>
+      <div id="ar_backdrop" class="sheet-backdrop"></div>
+      <div class="sheet">
+        <div class="screen-head">
+          <span class="lab" id="ar_cat">—</span>
+          <button class="btn-x" id="ar_close" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="stack-tight">
+          <h2 class="article-title" id="ar_title">—</h2>
+          <div class="lab" id="ar_meta">—</div>
+          <p class="article-body" id="ar_summary"></p>
+          <div class="card" id="ar_why_box">
+            <div class="lab">Why it matters</div>
+            <div class="note-sm" id="ar_why" style="color:var(--paper); font-size:13.5px;"></div>
+          </div>
+          <a class="btn-solid" id="ar_link" href="#" target="_blank" rel="noopener">Read at the source ↗</a>
+          <div class="note-sm">A summary in our own words. The full story is on the publisher's site.</div>
         </div>
       </div>
     </div>
