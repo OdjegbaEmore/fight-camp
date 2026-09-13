@@ -95,7 +95,7 @@ branch, verify against live data, merge when Today/Progress render correctly.
 12. **Migrate `extra_cal`** — the diary becomes the intake source. Historical rows keep their
     typed value as one "legacy entry" line item so the deficit history stays intact.
 
-## Phase 4 — News, Tips, Weekly focus, Quotes 🔨 **built on `phase-4-content` 2026-09-13** · full plan in `PHASE4_HANDOFF.md`
+## Phase 4 — News, Tips, Weekly focus, Quotes ✅ **built and merged to `main` 2026-09-13** · full plan in `PHASE4_HANDOFF.md`
 
 **Design approved by the user 2026-09-13:** two tasks — `fight-camp-news` daily 5:30 AM and
 `fight-camp-content` Sunday 10 PM; news covers pro, amateur & Olympic, training & nutrition
@@ -117,7 +117,7 @@ Wikiquote's sourced sections). A fact check found one news row (USA Boxing event
 summary carried details the page doesn't state and whose date was invented — hidden
 (`active=false`), and the news prompt now requires dated articles and every fact from the linked
 page. News order is newest `published_at`, then the task's own order within a day.
-**Not merged** — waiting on the user's look at the branch.
+**Merged to `main` 2026-09-13** with the user's approval.
 
 **Guards in code, not prose:** freshness gate on date-stamped batch *and* context files;
 news needs a real URL, a date within 10 days, a known category, no quoted run over 12 words;
